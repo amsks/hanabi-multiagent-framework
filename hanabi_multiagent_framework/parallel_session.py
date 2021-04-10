@@ -42,8 +42,8 @@ class HanabiParallelSession:
 
 
     def __init__(self,
-                 env: HanabiParallelEnvironment,
-                 agents: List[HanabiAgent]):
+                env: HanabiParallelEnvironment,
+                agents: List[HanabiAgent]):
         """Constructor.
         Args:
             env        -- hanabi parallel environment.
@@ -87,7 +87,8 @@ class HanabiParallelSession:
                 print_intermediate: bool = True,
                 store_steps: bool = True,
                 store_moves: bool = True,
-                n_chunk: int = 1) -> np.ndarray:
+                n_chunk: int = 1
+                ) -> np.ndarray:
         """Run each state until the end and return the final scores.
         Args:
             print_intermediate -- Flag indicating whether each step of evaluation should be printed.
@@ -261,6 +262,7 @@ class HanabiParallelSession:
             
             terminal = step_types == StepType.LAST
             
+            ## For terminal states, reset the stuff for agent 
             self._cur_obs, step_types = self.parallel_env.reset_states(
                 np.nonzero(terminal)[0],
                 agent_id)
@@ -323,7 +325,7 @@ class HanabiParallelSession:
             self.agent_cum_rewards[agent_id, :] = 0
             self.agent_contiguous_states[agent_id, :] = True
             
-             # calculate team reward = own reward + reward of co players
+            # calculate team reward = own reward + reward of co players
             self.agent_cum_rewards[self.agent_contiguous_states] += np.broadcast_to(
                 rewards.reshape((-1, 1)),
                 self.agent_cum_rewards.shape)[self.agent_contiguous_states]

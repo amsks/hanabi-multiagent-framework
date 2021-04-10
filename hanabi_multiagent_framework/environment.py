@@ -18,8 +18,8 @@ class HanabiParallelEnvironment:
         self.last_observation = None
 
     def step(self,
-             actions: Union[List[pyhanabi.HanabiMove], List[int]],
-             agent_id: int
+                actions: Union[List[pyhanabi.HanabiMove], List[int]],
+                agent_id: int
             ) -> Tuple[List[pyhanabi.HanabiObservation], np.ndarray, np.ndarray]:
         """Take one step in all game states.
         Args:
@@ -27,9 +27,9 @@ class HanabiParallelEnvironment:
             agent_id -- id of the agent taking the actions.
         Return:
             a tuple consisting of:
-              - observation array
-              - reward array
-              - step_type array
+                - observation array
+                - reward array
+                - step_type array
         """
 
         last_score = np.array(self._parallel_env.get_scores())
@@ -54,7 +54,7 @@ class HanabiParallelEnvironment:
         # Reward is the score differential. May be large and negative at game end.
         reward = score - last_score
         # illegal moves are punished as loosing the game
-        reward[moves_illegal] = -last_score[moves_illegal]
+        reward[moves_illegal] = -last_score[moves_illegal] - 1
 
         terminal = np.logical_or(
             moves_illegal,
@@ -72,12 +72,12 @@ class HanabiParallelEnvironment:
     def game_config(self):
         """Gather some game configuration details.
         It includes
-          -- hand size,
-          -- number of cards,
-          -- number of colors,
-          -- number of ranks,
-          -- number of like tokens,
-          -- number of information token.
+            -- hand size,
+            -- number of cards,
+            -- number of colors,
+            -- number of ranks,
+            -- number of like tokens,
+            -- number of information token.
         """
         hand_size = self._parallel_env.parent_game.hand_size
         n_cards = self._parallel_env.parent_game.num_colors \
@@ -152,40 +152,40 @@ class HanabiParallelEnvironment:
         """Returns the vectorized encoded observation spec.
         Observation is a tuple containing observations and legal moves.
         """
-        return (dm_specs.BoundedArray(shape=(self.num_states, self.observation_len),
-                                      dtype=np.int8,
-                                      name="agent_observations",
-                                      minimum=0, maximum=1),
-                dm_specs.BoundedArray(shape=(self.num_states, self.max_moves),
-                                      dtype=np.int8,
-                                      name="legal_moves",
-                                      minimum=0, maximum=1))
+        return (dm_specs.BoundedArray(  shape=(self.num_states, self.observation_len),
+                                        dtype=np.int8,
+                                        name="agent_observations",
+                                        minimum=0, maximum=1),
+                dm_specs.BoundedArray(  shape=(self.num_states, self.max_moves),
+                                        dtype=np.int8,
+                                        name="legal_moves",
+                                        minimum=0, maximum=1))
 
     def observation_spec_vec(self) -> Tuple[dm_specs.BoundedArray, dm_specs.BoundedArray]:
         """Returns the encoded observation spec.
         Encoded observation is a tuple containing observations and legal moves.
         """
         return (dm_specs.BoundedArray(shape=(self.observation_len,),
-                                      dtype=np.float16,
-                                      name="agent_observation",
-                                      minimum=0, maximum=1),
+                                        dtype=np.float16,
+                                        name="agent_observation",
+                                        minimum=0, maximum=1),
                 dm_specs.BoundedArray(shape=(self.max_moves,),
-                                      dtype=np.float16,
-                                      name="legal_moves",
-                                      minimum=0, maximum=1))
+                                        dtype=np.float16,
+                                        name="legal_moves",
+                                        minimum=0, maximum=1))
 
     def action_spec_vec_batch(self) -> dm_specs.BoundedArray:
         """Returns the vectorized encoded action spec."""
         return dm_specs.BoundedArray(shape=(self.num_states,),
-                                     dtype=np.int,
-                                     name="actions",
-                                     minimum=0, maximum=self.max_moves)
+                                        dtype=np.int,
+                                        name="actions",
+                                        minimum=0, maximum=self.max_moves)
 
     def action_spec_vec(self) -> dm_specs.DiscreteArray:
         """Returns the encoded action spec."""
         return dm_specs.DiscreteArray(self.max_moves,
-                                      dtype=np.int,
-                                      name="action")
+                                        dtype=np.int,
+                                        name="action")
 
     def reward_spec_vec_batch(self) -> dm_specs.Array:
         """Returns the vectorized encoded reward spec."""

@@ -101,6 +101,7 @@ def session(
     # env_conf = make_hanabi_env_config('Hanabi-Small-CardKnowledge', n_players)
     env_conf = make_hanabi_env_config(hanabi_game_type, n_players)
     
+    # If the maximum tokens are not none, load them up
     if max_life_tokens is not None:
             env_conf["max_life_tokens"] = str(max_life_tokens)
     logger.info('Game Config\n' + str(env_conf))

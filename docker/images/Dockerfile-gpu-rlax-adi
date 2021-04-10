@@ -1,0 +1,44 @@
+FROM alpine/git as hanabi-fetch
+
+RUN mkdir /dm-tools && \
+    # git clone https://github.com/deepmind/hanabi-learning-environment.git /dm-tools/hanabi-learning-environment && \
+    git clone https://github.com/deepmind/dm_env.git --depth 1 /dm-tools/dm-env && \
+    git clone https://github.com/deepmind/dm-haiku.git --depth 1 /dm-tools/dm-haiku && \
+    git clone https://github.com/deepmind/rlax.git --depth 1 /dm-tools/rlax && \
+    mkdir /hanabi && \
+    git clone https://github.com/Hanabi-Game-Project/hanabi-learning-environment.git --recurse-submodules --branch pybind11 --depth 1 /hanabi/le && \
+    git clone https://github.com/amsks/hanabi-multiagent-framework.git --branch conservative_agent --depth 1 /hanabi/framework && \
+    git clone https://github.com/amsks/hanabi-agents.git --recurse-submodules --branch conservative_agent --depth 1 /hanabi/agents && \
+    wget -O /dm-tools/miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+
+FROM nvidia/cuda:10.1-cudnn7-devel
+
+RUN apt-get update && apt-get install -y cmake git && rm -rf /var/lib/apt/lists/*
+
+COPY --from=hanabi-fetch /dm-tools /dm-tools/
+COPY --from=hanabi-fetch /hanabi /hanabi/
+
+# conda
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+ENV PATH /opt/conda/bin:$PATH
+
+RUN /bin/bash /dm-tools/miniconda.sh -b -p /opt/conda && \
+    /opt/conda/bin/conda clean -tipsy && \
+    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
+    echo "conda activate base" >> ~/.bashrc && \
+    find /opt/conda/ -follow -type f -name '*.a' -delete && \
+    find /opt/conda/ -follow -type f -name '*.js.map' -delete && \
+    /opt/conda/bin/conda clean -afy && \
+    pip install --upgrade pip && \
+    pip install pyyaml gin-config && \
+    pip install chex==0.0.2 dm-env==1.3 dm-haiku==0.0.3 dm-tree==0.1.5 jax==0.2.5 optax==0.0.1 rlax==0.0.2 && \
+    # install cuda version of jaxlib
+    pip install --upgrade https://storage.googleapis.com/jax-releases/cuda101/jaxlib-0.1.55-$(python -V | awk '{split($2,a,"."); print "cp" a[1] a[2]}')-none-manylinux2010_x86_64.whl && \
+    # install deepmind dependencies
+    # pip install /dm-tools/dm-env dm-tools/dm-haiku dm-tools/rlax && \
+    # install hanabi
+    pip install /hanabi/le hanabi/framework hanabi/agents && \
+    rm -rf dm-tools hanabi
+
+CMD [ "/bin/bash" ]
