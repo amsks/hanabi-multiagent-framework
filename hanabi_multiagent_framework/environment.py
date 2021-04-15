@@ -52,15 +52,22 @@ class HanabiParallelEnvironment:
         score = np.array(self._parallel_env.get_scores())
 
         # Reward is the score differential. May be large and negative at game end.
-        reward = score - last_score
+        reward = score - last_score 
         # illegal moves are punished as loosing the game
-        reward[moves_illegal] = -last_score[moves_illegal] - 1
+        reward[moves_illegal] = - 25
+        # last_score[moves_illegal]
+
+        # Finishing up life tokens results in Death and resetting the score to -25 
+        out_of_life = np.array(self._parallel_env.get_state_statuses() \
+                                == pyhanabi.HanabiState.EndOfGameType.kOutOfLifeTokens )
+    
+        rewards[out_of_life] = -25
 
         terminal = np.logical_or(
             moves_illegal,
-            np.array(self._parallel_env.get_state_statuses()) \
-                != pyhanabi.HanabiState.EndOfGameType.kNotFinished)
+            np.array(self._parallel_env.get_state_statuses()) != pyhanabi.HanabiState.EndOfGameType.kNotFinished)
 
+    
         self.step_types = np.full((self.num_states,), StepType.MID)
         self.step_types[terminal] = StepType.LAST
 
