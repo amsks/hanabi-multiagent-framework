@@ -63,7 +63,7 @@ def load_agent(env):
 @gin.configurable(blacklist=['output_dir', 'self_play'])
 def session(
             #agent_config_path=None,
-            hanabi_game_type="Hanabi-Small",
+            hanabi_game_type="Hanabi-Very-Small",
             n_players: int = 2,
             max_life_tokens: int = None,
             n_parallel: int = 32,
@@ -162,11 +162,15 @@ def session(
     for epoch in range(epoch_offset, epochs + epoch_offset):
         
         # train
-        parallel_session.train( n_iter=eval_freq,
+        rewards = parallel_session.train( n_iter=eval_freq,
                                 n_sim_steps=n_sim_steps,
                                 n_train_steps=n_train_steps,
                                 n_warmup=n_warmup)
         
+
+        np.save(os.path.join(output_dir, "stats", str(epoch)) + "_training_rewards.npy", rewards)
+
+
         # no warmup after epoch 0
         n_warmup = 0
         
