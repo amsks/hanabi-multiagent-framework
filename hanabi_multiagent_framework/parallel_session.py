@@ -217,7 +217,7 @@ class HanabiParallelSession:
                         "reveal_options": np.sum(np.array(reveal_options)[valid_states]),
                         "reveal": np.sum(np.array(reveal_moves)[valid_states]),
                         "playability": step_playability,
-                        "Negative Occurences": max_neg,
+                        "negs": max_neg,
                         "agent_id": agent_id
                     })
 

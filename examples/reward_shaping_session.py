@@ -63,7 +63,7 @@ def load_agent(env):
 @gin.configurable(blacklist=['output_dir', 'self_play'])
 def session(
             #agent_config_path=None,
-            hanabi_game_type="Hanabi-Very-Small",
+            hanabi_game_type="Hanabi-Small",
             n_players: int = 2,
             max_life_tokens: int = None,
             n_parallel: int = 32,

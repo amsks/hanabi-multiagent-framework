@@ -70,23 +70,29 @@ class HanabiParallelEnvironment:
         # Achievable in the game
 
         reward[moves_illegal] = - self.max_score
-        print(f"Moves Illegal  -----> {moves_illegal}")
-        print(f"reward[moves_illegal] -----> {reward[moves_illegal]}")
+        # print(f"Moves Illegal  -----> {np.any(moves_illegal)}")
+        # print(f"reward[moves_illegal] -----> {reward[moves_illegal]}")
 
         # Finishing up life tokens results in Death and resetting the score to some fixed negative reward or some 
         # other variabel reward -> Need to be tested 
-        out_of_life = np.array(self._parallel_env.get_state_statuses() \
-                                == pyhanabi.HanabiState.EndOfGameType.kOutOfLifeTokens )
+        out_of_life = np.array(self._parallel_env.get_state_statuses()) \
+                                == pyhanabi.HanabiState.EndOfGameType.kOutOfLifeTokens 
 
         reward[out_of_life] = - self.max_score
-        print(f"out_of_life ------> {out_of_life}")
+        print(f"out_of_life ------> {np.any(out_of_life)}")
         print(f"reward[out_of_life] -------> {reward[out_of_life]}")
+
+        not_finished = np.array(self._parallel_env.get_state_statuses(
+        )) != pyhanabi.HanabiState.EndOfGameType.kNotFinished
 
         terminal = np.logical_or(
             moves_illegal,
-            np.array(self._parallel_env.get_state_statuses()) != pyhanabi.HanabiState.EndOfGameType.kNotFinished)
+            not_finished
+            )
 
-        print(f"kNotFinished ------> {np.array(self._parallel_env.get_state_statuses()) != pyhanabi.HanabiState.EndOfGameType.kNotFinished}")
+        # print(f"{np.any(moves_illegal)}, {np.any(out_of_life)}, {np.any(not_finished)}")
+        # print(f"Unique Statuses - - -> {np.any(out_of_life)}")
+
         self.step_types = np.full((self.num_states,), StepType.MID)
         self.step_types[terminal] = StepType.LAST
 
