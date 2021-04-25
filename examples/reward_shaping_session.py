@@ -162,13 +162,13 @@ def session(
     for epoch in range(epoch_offset, epochs + epoch_offset):
         
         # train
-        rewards = parallel_session.train( n_iter=eval_freq,
+        parallel_session.train( n_iter=eval_freq,
                                 n_sim_steps=n_sim_steps,
                                 n_train_steps=n_train_steps,
                                 n_warmup=n_warmup)
         
 
-        np.save(os.path.join(output_dir, "stats", str(epoch)) + "_training_rewards.npy", rewards)
+        # np.save(os.path.join(output_dir, "stats", str(epoch)) + "_training_rewards.npy", rewards)
 
 
         # no warmup after epoch 0
