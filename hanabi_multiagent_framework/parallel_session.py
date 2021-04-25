@@ -229,7 +229,7 @@ class HanabiParallelSession:
             
         # store statistics in files
         if dest is not None:
-            print(f"Total Rewards  ------> {total_reward}")
+            # print(f"Total Rewards  ------> {total_reward}")
             np.save(dest + "_total_rewards.npy", total_reward)
             np.save(dest + "_total_shaped_rewards.npy", total_shaped_reward)
             
