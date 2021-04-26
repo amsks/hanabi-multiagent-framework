@@ -88,6 +88,9 @@ def session(
     for i in range(n_players):
         os.makedirs(os.path.join(output_dir, "weights", "agent_" + str(i)))
     
+    
+    print(f"Heeheheheheheheheheheheheheheheheheheheh")
+    
     #logger
     logger = logging.getLogger('Training_Log')
     logger.setLevel(logging.DEBUG)

@@ -70,7 +70,8 @@ class HanabiParallelEnvironment:
         # illegal moves are punished as loosing the game -> fixed reward of the negative of the maximum score
         # Achievable in the game
 
-        self.neg = self.max_score
+        self.neg = self.max_score - last_score
+        print("KAR DIYA ------------------------------------------>")
         reward[moves_illegal] = - self.neg
         # print(f"Moves Illegal  -----> {np.any(moves_illegal)}")
         # print(f"reward[moves_illegal] -----> {reward[moves_illegal]}")
