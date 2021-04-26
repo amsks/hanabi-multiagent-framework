@@ -65,6 +65,9 @@ class HanabiParallelEnvironment:
         # Reward is the score differential. May be large and negative at game end.
         reward = score - last_score
         
+        print("BLAH BLAH BLAH ------------------->>>>>>>>>>>>")
+
+
         # print(f"Max Score -------> {max_score}")
         # illegal moves are punished as loosing the game -> fixed reward of the negative of the maximum score
         # Achievable in the game
