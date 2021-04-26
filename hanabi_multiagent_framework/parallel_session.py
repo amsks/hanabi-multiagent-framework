@@ -172,7 +172,7 @@ class HanabiParallelSession:
 
 
             # print(f"Reward Shape -----> {np.shape(reward)}"
-            max_neg = np.count_nonzero(np.array(reward) == - self.parallel_env.neg)
+            max_neg = np.count_nonzero(np.array(reward) < 0 )
 
             # add shaped reward to observed reward       
             shaped_reward = reward + reward_shaping

@@ -77,7 +77,7 @@ def session(
             output_dir = "./output",
             start_with_weights=None,
             n_backup = 500, 
-            restore_weights = None
+            restore_weights = None,
     ):
     
     print(epochs, n_parallel, n_parallel_eval)
@@ -87,9 +87,6 @@ def session(
     os.makedirs(os.path.join(output_dir, "stats"))
     for i in range(n_players):
         os.makedirs(os.path.join(output_dir, "weights", "agent_" + str(i)))
-    
-    
-    print(f"Heeheheheheheheheheheheheheheheheheheheh")
     
     #logger
     logger = logging.getLogger('Training_Log')
@@ -130,7 +127,7 @@ def session(
         
         agents = []
         logger.info("multi play")
-          
+    
         for i in range(n_players):
             with gin.config_scope('agent_'+str(i)): 
                 agent = load_agent(env)
