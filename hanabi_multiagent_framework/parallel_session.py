@@ -171,7 +171,7 @@ class HanabiParallelSession:
             self._cur_obs, reward, step_types = self.parallel_env.step(actions, agent_id)
 
 
-            print(f"Reward Shape -----> {reward}") 
+            # print(f"Reward Shape -----> {reward}") 
             max_neg += np.count_nonzero(np.array(reward) < 0 )
 
             # add shaped reward to observed reward       
