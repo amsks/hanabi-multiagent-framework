@@ -301,7 +301,7 @@ if __name__ == "__main__":
         help="Destination for storing weights and statistics")
     parser.add_argument(
         "--start_with_weights", type=json.loads, default=None,
-        help="Initialize the agents with the specified weights before training. Syntax: {\"agent_0\" : [\"path/to/weights/1\", ...], ...}")
+        help="Initialize the agents with the specified weights before training. Syntax: {\"agent_0\" : [\"path/to/weights/1\", ...], ...}") 
 
     args = parser.parse_args()
 

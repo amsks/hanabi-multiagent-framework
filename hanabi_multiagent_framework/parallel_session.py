@@ -166,13 +166,13 @@ class HanabiParallelSession:
                 counter += 1  
             # reveal options
             reveal_options = [1 if o.information_tokens>0 else 0 for o in self._cur_obs]
-            
+            max_neg = 0
             # apply moves, get new observation based on action
             self._cur_obs, reward, step_types = self.parallel_env.step(actions, agent_id)
 
 
-            # print(f"Reward Shape -----> {np.shape(reward)}"
-            max_neg = np.count_nonzero(np.array(reward) < 0 )
+            print(f"Reward Shape -----> {reward}") 
+            max_neg += np.count_nonzero(np.array(reward) < 0 )
 
             # add shaped reward to observed reward       
             shaped_reward = reward + reward_shaping

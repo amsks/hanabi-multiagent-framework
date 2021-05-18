@@ -65,14 +65,14 @@ class HanabiParallelEnvironment:
         # Reward is the score differential. May be large and negative at game end.
         reward = score - last_score
         
-        print("BLAH BLAH BLAH ------------------->>>>>>>>>>>>")
+        # print("BLAH BLAH BLAH ------------------->>>>>>>>>>>>")
 
 
         # print(f"Max Score -------> {max_score}")
         # illegal moves are punished as loosing the game -> fixed reward of the negative of the maximum score
         # Achievable in the game
 
-        reward[moves_illegal] = - (self.max_moves - last_score[moves_illegal])
+        reward[moves_illegal] = - (self.max_moves)
         # print(f"Moves Illegal  -----> {np.any(moves_illegal)}")
         # print(f"reward[moves_illegal] -----> {reward[moves_illegal]}")
 
@@ -81,7 +81,7 @@ class HanabiParallelEnvironment:
         out_of_life = np.array(self._parallel_env.get_state_statuses()) \
                                 == pyhanabi.HanabiState.EndOfGameType.kOutOfLifeTokens 
 
-        reward[out_of_life] = - (self.max_score - last_score[out_of_life] )
+        reward[out_of_life] = - (self.max_score)
 
         # print(f"out_of_life ------> {np.any(out_of_life)}")
         # print(f"reward[out_of_life] -------> {reward[out_of_life]}")
