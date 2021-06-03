@@ -14,6 +14,8 @@ from .utils import eval_pretty_print
 from hanabi_learning_environment import pyhanabi_pybind as pyhanabi
 from hanabi_learning_environment.pyhanabi_pybind import RewardShaper, RewardShapingParams
 
+import dill as pickle
+
 class HanabiParallelSession:
     """
     A class for running parallel game sessions
@@ -75,9 +77,10 @@ class HanabiParallelSession:
     def reset(self):
         """Reset the session, i.e. reset the all states and start from agent 0."""
         self.agents.reset()
-        self._cur_obs = self.parallel_env.reset()
+        self._cur_obs = self.parallel_env.reset()       # Reset returns the last observation
         self.agent_cum_rewards = np.zeros((len(self.agents), self.n_states, 1))
         self.agent_contiguous_states = np.full((len(self.agents), self.n_states), True)
+
         for stack in self.stacker_eval:
             if stack is not None:
                 stack.reset()
@@ -87,7 +90,8 @@ class HanabiParallelSession:
                 print_intermediate: bool = True,
                 store_steps: bool = True,
                 store_moves: bool = True,
-                n_chunk: int = 1
+                n_chunk: int = 1, 
+                log_observation: bool = False
                 ) -> np.ndarray:
         """Run each state until the end and return the final scores.
         Args:
@@ -99,6 +103,7 @@ class HanabiParallelSession:
         # values that are calculated each function call
         total_reward = np.zeros((self.n_states,))
         total_shaped_reward = np.zeros((self.n_states,))
+        obs_db = []
         step_rewards = []
         playability = [[] for i in range(self.n_states)]
         
@@ -131,11 +136,18 @@ class HanabiParallelSession:
                 self.parallel_env.reset_states(
                     np.nonzero(step_types == StepType.LAST)[0], agent_id)
 
+            
             # preprocessing for rainbow: 
-            # get vectorized form of object and add to stacker
+            # get vectorized form of object and add to stacker --> Tuple of 2 observation vectors
             obs = self.preprocess_obs_for_agent(self._cur_obs, agent, self.stacker_eval[agent_id])
             
-            # agent selects action
+            # print(f"Current Obs ----------> {type(self._cur_obs)}")
+            # print(f"Observations ---------> {type(obs)}")
+
+            # Store the observations
+            obs_db.append(self._cur_obs) 
+
+            # agent selects action --> This is the entry point for the observations. 
             actions = agent.exploit(obs)
 
             # rule based agent returns move object
@@ -167,6 +179,7 @@ class HanabiParallelSession:
             # reveal options
             reveal_options = [1 if o.information_tokens>0 else 0 for o in self._cur_obs]
             max_neg = 0
+
             # apply moves, get new observation based on action
             self._cur_obs, reward, step_types = self.parallel_env.step(actions, agent_id)
 
@@ -232,6 +245,10 @@ class HanabiParallelSession:
             # print(f"Total Rewards  ------> {total_reward}")
             np.save(dest + "_total_rewards.npy", total_reward)
             np.save(dest + "_total_shaped_rewards.npy", total_shaped_reward)
+
+            if log_observation == True:
+                with open(dest + "_observations.pkl", "wb") as f:
+                    pickle.dump(obs_db, f)
             
             if store_steps:
                 np.save(dest + "_step_rewards.npy", step_rewards)

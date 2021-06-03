@@ -60,7 +60,7 @@ def load_agent(env):
         return RulebasedAgent(agent_params.ruleset)
 
 
-@gin.configurable(blacklist=['output_dir', 'self_play'])
+@gin.configurable(denylist=['output_dir', 'self_play'])
 def session(
             #agent_config_path=None,
             hanabi_game_type="Hanabi-Small",
@@ -78,6 +78,7 @@ def session(
             start_with_weights=None,
             n_backup = 500, 
             restore_weights = None,
+            log_observation=False
     ):
     
     print(epochs, n_parallel, n_parallel_eval)
@@ -184,7 +185,8 @@ def session(
         mean_reward = parallel_eval_session.run_eval(
             dest=os.path.join(output_dir, "stats", str(epoch)),
             store_moves=True,
-            store_steps = True
+            store_steps = True, 
+            log_observation=log_observation
             ).mean()
 
         # compare to previous iteration and store checkpoints
@@ -299,6 +301,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_dir", type=str, default="/output",
         help="Destination for storing weights and statistics")
+
+    parser.add_argument(
+        "--log_observation", default=False, action='store_true',
+        help="Set true to log observation objects"
+    )    
     parser.add_argument(
         "--start_with_weights", type=json.loads, default=None,
         help="Initialize the agents with the specified weights before training. Syntax: {\"agent_0\" : [\"path/to/weights/1\", ...], ...}") 
