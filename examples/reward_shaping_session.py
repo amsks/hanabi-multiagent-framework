@@ -9,6 +9,16 @@ from hanabi_learning_environment.pyhanabi_pybind import RewardShaper
 import logging
 import time
 
+import dill as pickle 
+import sklearn.metrics as metrics
+
+
+# base_folder = os.path.join('/home', 'mclovin', 'git',
+#                            'hanabi', 'Main', 'Agents')
+# path_to_agents = os.path.join(base_folder, 'Database')
+# path_to_obs = os.path.join(base_folder, 'Observations')
+
+
 @gin.configurable
 def RewardShapingParams(
         shaper: bool = True,
@@ -60,6 +70,113 @@ def load_agent(env):
         return RulebasedAgent(agent_params.ruleset)
 
 
+def load_obs(path):
+    
+    if not os.path.isdir(path):
+        raise Exception('{} is no valid path!'.format(path))
+
+    obs_db = []
+
+    for file in os.listdir(path):
+        loaded = []
+        with open(str(path) + "/" + str(file), "rb") as f:
+            loaded = pickle.load(f)
+
+        obs_db.append(loaded)
+
+    return np.array(obs_db)
+
+
+def get_name(path):
+    '''
+        Gathers information on the number of agents in the specified path and also separates between target 
+        and online parameters, as well as non-weights-files
+    '''
+    if not os.path.isdir(path):
+        raise Exception('{} is no valid path!'.format(path))
+
+    paths_agents = []
+
+    for file in os.listdir(path):
+        '''Supposes that agent weights have been stored with "target" as some part of their name'''
+        if 'target' in str(file):
+            paths_agents.append(file)
+
+    return paths_agents
+
+
+def mutual_information(agent_actions, partner_actions, no_obs):
+    '''Compares both vectors by calculating the mutual information'''
+    return 1 - metrics.normalized_mutual_info_score(agent_actions, agent_actions)
+
+
+def preprocess_obs_for_agent(obs, agent, stack, env):
+
+    if agent.requires_vectorized_observation():
+        vobs = np.array(env._parallel_env.encoded_observations)
+        if stack is not None:
+            stack.add_observation(vobs)
+            vobs = stack.get_current_obs()
+        vlms = np.array(env._parallel_env.encoded_legal_moves)
+        return (obs, (vobs, vlms))
+
+    return obs
+
+def calculate_diversity(
+    self_play_agent,
+    agents,  
+    path_to_partner, 
+    observations,
+    diversity_env, 
+    div_parallel_eval
+):
+    
+    partners = [self_play_agent for _ in range(2)]
+    for agent in partners:
+        location = os.path.join(path_to_partner, get_name(path_to_partner)[0])
+        agent.restore_weights(location, location)
+    
+    population = [agents, partners]
+
+    action_matrix = []
+    # mean_rewards = np.zeros((pop_size, 1))
+
+    ## Load the partner weights 
+    
+
+    
+    for i in range(len(population)):
+        diversity_session = hmf.HanabiParallelSession(diversity_env, population[i])
+        total_reward = diversity_session.run_eval(
+            print_intermediate = False,
+            print_agent = False
+        )
+        # mean_rewards[i] = np.mean(total_reward)
+
+        actions = []
+        
+        #feed set of predefined obs to each agent and saves results to list
+        for o in observations:
+            actions.append(agents[0].exploit(o))
+
+        action_matrix.append(actions)
+
+    action_matrix = np.array(action_matrix)
+    action_mat = []
+
+    for action in action_matrix:
+        action_mat.append(action.flatten())
+
+    diversity_matrix = [[] for i in range(len(action_mat))]
+
+    no_obs_test = len(observations) * len(population) * div_parallel_eval
+    diversity = mutual_information(action_mat[0], action_mat[1], no_obs_test)
+        
+    
+    return diversity
+
+
+
 @gin.configurable(denylist=['output_dir', 'self_play'])
 def session(
             #agent_config_path=None,
@@ -74,11 +191,16 @@ def session(
             epoch_offset = 0,
             eval_freq: int = 500,
             self_play: bool = True,
-            output_dir = "./output",
-            start_with_weights=None,
-            n_backup = 500, 
-            restore_weights = None,
-            log_observation=False
+            output_dir: str = "./output",
+            start_with_weights: bool =None,
+            n_backup: int = 500, 
+            restore_weights: bool = None,
+            log_observation: bool=False, 
+            path_to_partner: str = "./Agents/Database",
+            path_to_obs: str = "./Agents/Observations", 
+            div_parallel_eval: int = 100,
+            div_factor: float = 1.0
+
     ):
     
     print(epochs, n_parallel, n_parallel_eval)
@@ -110,19 +232,25 @@ def session(
     # create training and evaluation parallel environment
     env = hmf.HanabiParallelEnvironment(env_conf, n_parallel)
     eval_env = hmf.HanabiParallelEnvironment(env_conf, n_parallel_eval)
-            
+    
+    # Another parallel environment for calculating diversity
+    diversity_env = hmf.HanabiParallelEnvironment(env_conf, div_parallel_eval * 2)
+    with gin.config_scope('agent_0'):
+        div_agent = load_agent(diversity_env)
+
     # get agent and reward shaping configurations
     if self_play:
         
         with gin.config_scope('agent_0'):
             
-            agent = load_agent(env)
+            self_play_agent = load_agent(env)
             if restore_weights is not None:
-                agent.restore_weights(restore_weights, restore_weights)
-            agents = [agent for _ in range(n_players)]
+                self_play_agent.restore_weights(restore_weights, restore_weights)
+            agents = [self_play_agent for _ in range(n_players)]
             logger.info("self play")
-            logger.info("Agent Config\n" + str(agent))
-            logger.info("Reward Shaper Config\n" + str(agent.reward_shaper))
+            logger.info("Agent Config\n" + str(self_play_agent))
+            logger.info("Reward Shaper Config\n" +
+                        str(self_play_agent.reward_shaper))
     
     else:
         
@@ -147,6 +275,8 @@ def session(
     parallel_session = hmf.HanabiParallelSession(env, agents)
     parallel_session.reset()
     parallel_eval_session = hmf.HanabiParallelSession(eval_env, agents)
+
+    
     
     print("Game config", parallel_session.parallel_env.game_config)
     
@@ -156,17 +286,40 @@ def session(
     # calculate warmup period
     n_warmup = int(350 * n_players / n_parallel)
 
+    ## Initializing diversity locations
+    # div_agents = [self_play_agent for _ in range(2)]
+    div_obs = load_obs(path_to_obs)[0]
+    stacker = [self_play_agent.create_stacker(
+        diversity_env.observation_len, diversity_env.num_states)]
+
+    obs = []
+    for o in div_obs:
+        obs.append(preprocess_obs_for_agent(o, self_play_agent, stacker[0], diversity_env))
+
     # start time
     start_time = time.time()
     
     # start training
     for epoch in range(epoch_offset, epochs + epoch_offset):
         
-        # train
+        # Calculate Diversity
+        diversity = calculate_diversity(
+            diversity_env= diversity_env, 
+            agents = agents.copy(),
+            self_play_agent=div_agent, 
+            observations= obs, 
+            path_to_partner=path_to_partner, 
+            div_parallel_eval=div_parallel_eval
+        )
+
+        # Train
         parallel_session.train( n_iter=eval_freq,
                                 n_sim_steps=n_sim_steps,
                                 n_train_steps=n_train_steps,
-                                n_warmup=n_warmup)
+                                n_warmup=n_warmup,
+                                diversity=diversity, 
+                                factor=div_factor
+                                )
         
 
         # np.save(os.path.join(output_dir, "stats", str(epoch)) + "_training_rewards.npy", rewards)
@@ -249,7 +402,7 @@ def schedule_beta_is(value_start, value_end, steps):
 @gin.configurable
 def schedule_risk_penalty(value_start, value_end, steps):
     return ramp_schedule(value_start, value_end, steps)
-     
+
         
 def main(args):
     
@@ -266,31 +419,10 @@ if __name__ == "__main__":
     import json
     parser = argparse.ArgumentParser(description="Train a dm-rlax based rainbow agent.")
 
-#     parser.add_argument(
-#         "--hanabi_game_type", type=str, default="Hanabi-Small-Oracle",
-#         help='Can be "Hanabi-{VerySmall,Small,Full}-{Oracle,CardKnowledge}"')
-#     parser.add_argument("--n_players", type=int, default=2, help="Number of players.")
-#     parser.add_argument(
-#         "--max_life_tokens", type=int, default=None,
-#         help="Set a different number of life tokens.")
-# #     parser.add_argument(
-# #         "--n_parallel", type=int, default=32,
-# #         help="Number of games run in parallel during training.")
     parser.add_argument(
         "--self_play", default=False, action='store_true',
         help="Whether the agent should play with itself, or an independent agent instance should be created for each player.")
-#     parser.add_argument(
-#         "--n_train_steps", type=int, default=4,
-#         help="Number of training steps made in each iteration. One iteration consists of n_sim_steps followed by n_train_steps.")
-#     parser.add_argument(
-#         "--n_sim_steps", type=int, default=2,
-#         help="Number of environment steps made in each iteration.")
-#     parser.add_argument(
-#         "--epochs", type=int, default=1_000_000,
-#         help="Total number of rotations = epochs * eval_freq.")
-# #     parser.add_argument(
-# #         "--eval_n_parallel", type=int, default=1_000,
-# #         help="Number of parallel games to use for evaluation.")
+
     parser.add_argument(
         "--restore_weights", type=str, default=None,
         help="Path to weights of pretrained agent.")
@@ -305,10 +437,27 @@ if __name__ == "__main__":
     parser.add_argument(
         "--log_observation", default=False, action='store_true',
         help="Set true to log observation objects"
-    )    
+    )  
+    
     parser.add_argument(
         "--start_with_weights", type=json.loads, default=None,
         help="Initialize the agents with the specified weights before training. Syntax: {\"agent_0\" : [\"path/to/weights/1\", ...], ...}") 
+
+    parser.add_argument(
+        "--path_to_partner", type=str, default="../Agents/Database",
+        help= "Path to load the weights of partner from a Database"
+    )
+
+    parser.add_argument(
+        "--path_to_obs", type=str, default="../Agents/Observations", 
+        help= "Path to the observation database"
+    )
+
+    parser.add_argument(
+        "--div_factor", type=float, default=1.,
+        help="Importance factor for diversity"
+    )
+
 
     args = parser.parse_args()
 

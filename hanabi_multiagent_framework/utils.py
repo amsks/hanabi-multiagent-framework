@@ -5,7 +5,18 @@ from hanabi_learning_environment import pyhanabi, rl_env
 import numpy as np
 from scipy import stats
 
-def canonical_obsevation_substitute_colors(vectorized_observation, substitution_map, offsets):
+import os
+import numpy as np
+import gin
+import logging
+import time
+
+
+import matplotlib.pyplot as plt
+import dill as pickle
+import sklearn.metrics as metrics
+
+def canonical_observation_substitute_colors(vectorized_observation, substitution_map, offsets):
     """Replace colors in the observation according to the provided map
     """
     # EncodeHands, EncodeBoard, EncodeDiscards, EncodeLastAction, (EncodeCardKnowledge)
@@ -395,3 +406,49 @@ def eval_pretty_print(step_rewards, total_reward):
     print(f"Total: mean {total_reward.mean():.3f} med {np.median(total_reward):.0f} mode(s) {stats.mode(total_reward, axis=None)[0]} std {total_reward.std():.3f} min {int(total_reward.min()):2} max {int(total_reward.max()):2}")
     print_hist(total_reward, 25, height=20)
     print('')
+
+# class Diversity_Utils:
+#     def __init__(   self, 
+#                     agent, 
+#                     partner,
+#                     path_to_obs                
+#                 ):
+        
+#         self.agent = agent
+#         self.partner = partner
+#         self.path_to_obs = path_to_obs
+#         self.obs_db = self.load_obs
+
+
+#     def mutual_information(self, agent_actions , partner_actions, no_obs):
+#         '''Compares both vectors by calculating the mutual information'''
+#         return 1 - metrics.normalized_mutual_info_score(agent_actions, agent_actions)
+
+#     def simple_match(self, actions_agent, actions_partner, no_obs):
+#         '''Compares both action vectors and calculates the number of matching actions'''
+#         return (1 - np.sum(actions_agent == actions_partner)/ no_obs)
+
+#     def load_obs(self):
+#         '''
+#             Loads the observations from a folder
+#         '''
+#         if not os.path.isdir(self.path_to_obs ):
+#             raise Exception('{} is no valid path!'.format(self.path_to_obs))
+
+#         obs_db = []
+#         for file in os.listdir(self.path_to_obs):
+#             loaded = []
+#             with open(str(self.path_to_obs) + "/" + str(file), "rb") as f:
+#                 loaded = pickle.load(f)
+
+#             obs_db.append(loaded)
+
+#         return np.array(obs_db)
+
+    
+
+#     def update_agent ( self, agent):
+#         '''
+#             Updates the agent being trained
+#         '''
+#         self.agent = agent

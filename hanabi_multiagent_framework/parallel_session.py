@@ -91,14 +91,17 @@ class HanabiParallelSession:
                 store_steps: bool = True,
                 store_moves: bool = True,
                 n_chunk: int = 1, 
-                log_observation: bool = False
+                log_observation: bool = False,
+                print_agent: bool = True
                 ) -> np.ndarray:
         """Run each state until the end and return the final scores.
         Args:
             print_intermediate -- Flag indicating whether each step of evaluation should be printed.
         """
         self.reset()
-        print("Agents", self.agents.agents)
+
+        if print_agent:
+            print("Agents", self.agents.agents)
         
         # values that are calculated each function call
         total_reward = np.zeros((self.n_states,))
@@ -145,8 +148,9 @@ class HanabiParallelSession:
             # print(f"Observations ---------> {type(obs)}")
 
             # Store the observations
-            obs_db.append(self._cur_obs) 
-
+            if log_observation == True:
+                obs_db.append(self._cur_obs) 
+            
             # agent selects action --> This is the entry point for the observations. 
             actions = agent.exploit(obs)
 
@@ -182,7 +186,6 @@ class HanabiParallelSession:
 
             # apply moves, get new observation based on action
             self._cur_obs, reward, step_types = self.parallel_env.step(actions, agent_id)
-
 
             # print(f"Reward Shape -----> {reward}") 
             max_neg += np.count_nonzero(np.array(reward) < 0 )
@@ -362,11 +365,14 @@ class HanabiParallelSession:
         return cur_step, total_reward
 
 
+    ## Entry point for diversity metric
     def train(self,
                 n_iter: int,
                 n_sim_steps: int,
                 n_train_steps: int,
-                n_warmup: int
+                n_warmup: int, 
+                diversity: float, 
+                factor: float
             ):
         """Train agents.
 
@@ -385,7 +391,11 @@ class HanabiParallelSession:
             step_cur, training_rewards[i] = self.run(n_sim_steps)
             for _ in range(n_train_steps):
                 for agent in self.agents.agents:
-                    agent.update()         
+                    ## Insert the diversity calculation
+                    agent.update(
+                        factor =  factor, 
+                        diversity = diversity
+                    )         
 
         return training_rewards
 
@@ -405,5 +415,3 @@ class HanabiParallelSession:
         if agent.requires_vectorized_observation() and stack is not None:
             return (obs[0], (stack.get_current_obs(), obs[1][1]))
         return obs
-    
-    
