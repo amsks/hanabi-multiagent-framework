@@ -87,6 +87,24 @@ def load_obs(path):
     return np.array(obs_db)
 
 
+def no_agent_in_path(path):
+    '''
+        Gathers information on the number of agents in the specified path and also separates between target 
+        and online parameters, as well as non-weights-files
+    '''
+    if not os.path.isdir(path):
+        raise Exception('{} is no valid path!'.format(path))
+
+    paths_agents = []
+
+    for file in os.listdir(path):
+        '''Supposes that agent weights have been stored with "target" as some part of their name'''
+        if 'target' in str(file):
+            paths_agents.append(file)
+
+    return len(paths_agents), paths_agents
+
+
 def get_name(path):
     '''
         Gathers information on the number of agents in the specified path and also separates between target 
@@ -110,6 +128,10 @@ def mutual_information(agent_actions, partner_actions, no_obs):
     return 1 - metrics.normalized_mutual_info_score(agent_actions, agent_actions)
 
 
+def simple_match(actions_agent_a, actions_agent_b, no_obs):
+    '''Compares both action vectors and calculates the number of matching actions'''
+    return (1 - np.sum(actions_agent_a == actions_agent_b)/no_obs)
+
 def preprocess_obs_for_agent(obs, agent, stack, env):
 
     if agent.requires_vectorized_observation():
@@ -131,50 +153,54 @@ def calculate_diversity(
     div_parallel_eval
 ):
     
-    partners = [self_play_agent for _ in range(2)]
-    for agent in partners:
-        location = os.path.join(path_to_partner, get_name(path_to_partner)[0])
-        agent.restore_weights(location, location)
+    # Get the names and numbers of partners from the pool
+    n_partners, names = no_agent_in_path(path_to_partner)
+    partners = [[self_play_agent for _ in range(2)] for _ in range(n_partners) ]
     
-    population = [agents, partners]
-
-    action_matrix = []
-    # mean_rewards = np.zeros((pop_size, 1))
-
-    ## Load the partner weights 
+    print('Evaluating {} agents from the following given files {}'.format(
+        n_partners, names))
+    # Restore the weight for each partner in the pool
+    for i in range(n_partners):
+        for agent in partners[i]:
+            location = os.path.join(path_to_partner, names[i])
+            agent.restore_weights(location, location)
     
-
-    
-    for i in range(len(population)):
-        diversity_session = hmf.HanabiParallelSession(diversity_env, population[i])
-        total_reward = diversity_session.run_eval(
-            print_intermediate = False,
-            print_agent = False
-        )
-        # mean_rewards[i] = np.mean(total_reward)
-
-        actions = []
+    # Calculate and store the diversity of our agent with each partner
+    diversity = []
+    for i in range(n_partners):
+        population = [agents, partners[i]]
+        action_matrix = []
         
-        #feed set of predefined obs to each agent and saves results to list
-        for o in observations:
-            actions.append(agents[0].exploit(o))
+        for i in range(len(population)):
+            diversity_session = hmf.HanabiParallelSession(diversity_env, population[i])
+            total_reward = diversity_session.run_eval(
+                print_intermediate = False,
+                print_agent = False
+            )
 
-        action_matrix.append(actions)
+            actions = []
+            #feed set of predefined obs to each agent and saves results to list
+            for o in observations:
+                actions.append(agents[0].exploit(o))
 
-    action_matrix = np.array(action_matrix)
-    action_mat = []
+            action_matrix.append(actions)
 
-    for action in action_matrix:
-        action_mat.append(action.flatten())
+        action_matrix = np.array(action_matrix)
+        action_mat = []
 
-    diversity_matrix = [[] for i in range(len(action_mat))]
+        for action in action_matrix:
+            action_mat.append(action.flatten())
 
-    no_obs_test = len(observations) * len(population) * div_parallel_eval
-    diversity = mutual_information(action_mat[0], action_mat[1], no_obs_test)
-        
-    
-    return diversity
+        no_obs_test = len(observations) * len(population) * div_parallel_eval
+        diversity.append(
+            simple_match(
+                action_mat[0], action_mat[1], no_obs_test)
+        ) 
 
+    print(f"Diversity with each partner : {diversity}")
+    print(f"Average Diversity           : {np.mean(diversity)}")
+    # Return the mean diversity of the agent with all the partners in the pool
+    return np.mean(diversity)
 
 
 @gin.configurable(denylist=['output_dir', 'self_play'])
@@ -199,7 +225,8 @@ def session(
             path_to_partner: str = "./Agents/Database",
             path_to_obs: str = "./Agents/Observations", 
             div_parallel_eval: int = 100,
-            div_factor: float = 1.0
+            div_factor: float = 1.0,
+            log_diversity: bool = False
 
     ):
     
@@ -299,18 +326,27 @@ def session(
     # start time
     start_time = time.time()
     
+    diversity_tracker = []
     # start training
     for epoch in range(epoch_offset, epochs + epoch_offset):
         
         # Calculate Diversity
         diversity = calculate_diversity(
             diversity_env= diversity_env, 
-            agents = agents.copy(),
+            agents=parallel_session.agents.agents,
             self_play_agent=div_agent, 
             observations= obs, 
             path_to_partner=path_to_partner, 
             div_parallel_eval=div_parallel_eval
         )
+
+        diversity_tracker.append(diversity)
+
+        if log_diversity:
+            np.save(os.path.join(   output_dir, 
+                                    "stats",
+                                    ) + "/diversity.npy",
+                                diversity_tracker)
 
         # Train
         parallel_session.train( n_iter=eval_freq,
@@ -456,6 +492,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--div_factor", type=float, default=1.,
         help="Importance factor for diversity"
+    )
+
+    parser.add_argument(
+        "--log_diversity", default=False, action='store_true',
+        help = "Store Diveristy over the epochs"
     )
 
 
