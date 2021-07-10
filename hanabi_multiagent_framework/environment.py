@@ -8,7 +8,12 @@ from dm_env import specs as dm_specs
 from dm_env import TimeStep, StepType
 from hanabi_learning_environment import pyhanabi_pybind as pyhanabi
 
-class HanabiParallelEnvironment:
+import gym
+from gym import spaces
+from gym.spaces import Discrete, Box
+
+
+class HanabiParallelEnvironment(gym.Env):
     """
         Hanabi parallel environment wrapper for use with HanabiParallelSession.
     """
@@ -16,6 +21,7 @@ class HanabiParallelEnvironment:
                     env_config: Dict[str, str], 
                     n_parallel: int
                 ):
+        super(HanabiParallelEnvironment, self).__init__()
 
         self._parallel_env = pyhanabi.HanabiParallelEnv(env_config, n_parallel)
         self.n_players = self._parallel_env.parent_game.num_players
@@ -23,6 +29,11 @@ class HanabiParallelEnvironment:
         self.last_observation = None
         self.max_score = self._parallel_env.parent_game.num_ranks * \
             self._parallel_env.parent_game.num_colors
+            
+
+        # self.action_space = [Discrete(self._parallel_env.parent_game.max_moves) for _ in range(self.n_players)]
+        # self.observation_space = [Discrete(self._parallel_env.get_observation_flat_length()) for _ in range(self.n_players)]
+
 
     def step(   self,
                 actions: Union[List[pyhanabi.HanabiMove], List[int]],
@@ -102,7 +113,8 @@ class HanabiParallelEnvironment:
 
         return (self.last_observation,
                 reward,
-                self.step_types)
+                self.step_types
+                )
 
     @property
     def game_config(self):

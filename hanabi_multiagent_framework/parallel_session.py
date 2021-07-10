@@ -9,7 +9,6 @@ import numpy as np
 from dm_env import StepType
 from .agent import HanabiAgent
 from .environment import HanabiParallelEnvironment
-from .experience_buffer import ExperienceBuffer
 from .utils import eval_pretty_print
 from hanabi_learning_environment import pyhanabi_pybind as pyhanabi
 from hanabi_learning_environment.pyhanabi_pybind import RewardShaper, RewardShapingParams
@@ -93,7 +92,7 @@ class HanabiParallelSession:
                 n_chunk: int = 1, 
                 log_observation: bool = False,
                 print_agent: bool = True
-                ) -> np.ndarray:
+                ) -> np.ndarray:  # sourcery no-metrics
         """Run each state until the end and return the final scores.
         Args:
             print_intermediate -- Flag indicating whether each step of evaluation should be printed.
@@ -277,7 +276,9 @@ class HanabiParallelSession:
         return total_reward
 
 
-    def run(self, n_steps: int):
+    def run(
+        self, 
+        n_steps: int):
         """Make <n_steps> in each of the parallel game states.
         States, rewards, etc. are preserved between runs.
         """
@@ -313,23 +314,26 @@ class HanabiParallelSession:
                 
                 # shape rewards
                 # convert actions to HanabiMOve objects
-
                 if agent.requires_vectorized_observation():
                     last_moves = self.parallel_env.get_moves(self.last_actions[agent_id])
                 else:
                     last_moves = self.last_actions[agent_id]
 
+                # shape rewards
                 add_rewards, shape_type = agent.shape_rewards(self.last_observations[agent_id], last_moves)
                 shaped_rewards = self.agent_cum_rewards[agent_id] + add_rewards.reshape(-1, 1)
 
-                # add observation to agent
+                # add observation to agent's experience buffer. Thus, transitions are added 
+                # n_step times to the buffer 
+                
                 agent.add_experience(
-                    self.last_observations[agent_id],
-                    self.last_actions[agent_id],
-                    shaped_rewards,
-                    obs,
-                    is_last_step.reshape(-1, 1))
-            
+                    observation_tm1 = self.last_observations[agent_id],         # obs_t
+                    action_tm1 = self.last_actions[agent_id],                   # actions
+                    reward_t = shaped_rewards,                                  # rew
+                    observation_t=obs,                                          # obs_t'
+                    terminal_t=is_last_step.reshape(-1, 1))                     # done
+        
+        
             # clear history for all states that had a last step
             # then only the first state observation should be in stack
             if True in is_last_step:
@@ -337,11 +341,20 @@ class HanabiParallelSession:
                     self.stacker[agent_id].reset_history(is_last_step)
                     obs = self.update_obs_for_agent(obs, agent, self.stacker[agent_id])           
             
+            # Get actions based on the preprocessed observations
             actions = agent.explore(obs)
             
             # apply actions to the states and get new observations, rewards, statuses.
-            self._cur_obs, rewards, step_types = self.parallel_env.step(
-                actions, agent_id)
+            if agent.type == 'PPO':
+                self._cur_obs, rewards, step_types = \
+                    self.parallel_env.step(
+                        actions[0],
+                        agent_id)
+            else:
+                self._cur_obs, rewards, step_types = \
+                    self.parallel_env.step(
+                                    actions, 
+                                    agent_id    )
             
             # store info from this round
             self.last_actions[agent_id] = actions             
@@ -386,12 +399,15 @@ class HanabiParallelSession:
         self.run(n_warmup)
         
         training_rewards = np.zeros((n_iter,  n_sim_steps, self.n_states))
+        
         # number of iterations per epoch is given
         for i in range(n_iter):
+            # run adds the experiences to the buffer
             step_cur, training_rewards[i] = self.run(n_sim_steps)
             for _ in range(n_train_steps):
                 for agent in self.agents.agents:
                     ## Insert the diversity calculation
+                    # Update uses the added experiences in the buffer to update the network
                     agent.update(
                         factor =  factor, 
                         diversity = diversity
@@ -399,8 +415,14 @@ class HanabiParallelSession:
 
         return training_rewards
 
-    def preprocess_obs_for_agent(self, obs, agent, stack):
-        
+    def preprocess_obs_for_agent(
+        self, 
+        obs, 
+        agent, 
+        stack   ):
+        """
+            
+        """
         if agent.requires_vectorized_observation():
             vobs = np.array(self.parallel_env._parallel_env.encoded_observations)
             if stack is not None:

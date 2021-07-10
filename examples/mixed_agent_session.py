@@ -32,11 +32,12 @@ def load_agent(env):
                         reward_shaper)
     elif agent_type.type == 'rulebased':
         agent_params = RulebasedParams()
-        return RulebasedAgent(agent_params.ruleset,
-                              reward_shaper)
+        return RulebasedAgent(  agent_params.ruleset,
+                                reward_shaper
+                            )
 
 
-@gin.configurable(blacklist=['output_dir', 'self_play'])
+@gin.configurable(denylist=['output_dir', 'self_play'])
 def session(
             #agent_config_path=None,
             hanabi_game_type="Hanabi-Small",
@@ -50,7 +51,7 @@ def session(
             eval_freq: int = 500,
             self_play: bool = False,
             output_dir = "/output",
-    ):
+    ):  # sourcery no-metrics
     
     print(epochs, n_parallel, n_parallel_eval)
     
@@ -94,7 +95,6 @@ def session(
     else:
     
         agents = []
-          
         for i in range(n_players):
             with gin.config_scope('agent_'+str(i)): 
                 
@@ -121,10 +121,11 @@ def session(
     for epoch in range(epochs):
         
         # train
-        parallel_session.train(n_iter=eval_freq,
-                               n_sim_steps=n_sim_steps,
-                               n_train_steps=n_train_steps,
-                               n_warmup=n_warmup)
+        parallel_session.train( n_iter=eval_freq,
+                                n_sim_steps=n_sim_steps,
+                                n_train_steps=n_train_steps,
+                                n_warmup=n_warmup
+                            )
         
         # no warmup after epoch 0
         n_warmup = 0

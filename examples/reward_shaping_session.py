@@ -13,11 +13,6 @@ import dill as pickle
 import sklearn.metrics as metrics
 
 
-# base_folder = os.path.join('/home', 'mclovin', 'git',
-#                            'hanabi', 'Main', 'Agents')
-# path_to_agents = os.path.join(base_folder, 'Database')
-# path_to_obs = os.path.join(base_folder, 'Observations')
-
 
 @gin.configurable
 def RewardShapingParams(
@@ -47,28 +42,29 @@ def RewardShapingParams(
     
 
 def load_agent(env):
+    """
+    Load the agent based on the type of agent and the paramters associated with it
+
+    Args:
+        env :  Object to the environment
+
+    Returns:
+        Agent instantiated
+    """
     
     # load reward shaping infos
     params = RewardShapingParams()
-    if params is not None:
-        reward_shaper = RewardShaper(params = params)
-    else:
-        reward_shaper = None
-    
+    reward_shaper = RewardShaper(params = params) if params is not None else None
     # load agent based on type
     agent_type = AgentType()
-    
+
     if agent_type.type == 'rainbow':
         agent_params = RlaxRainbowParams()
-        return DQNAgent(env.observation_spec_vec_batch()[0],
-                        env.action_spec_vec(),
-                        agent_params,
-                        reward_shaper)
-        
-    elif agent_type.type == 'rulebased':        
-        agent_params = RulebasedParams()
-        return RulebasedAgent(agent_params.ruleset)
-
+        return DQNAgent(
+                env.observation_spec_vec_batch()[0],
+                env.action_spec_vec(),
+                agent_params,
+                reward_shaper   )
 
 def load_obs(path):
     
@@ -104,7 +100,6 @@ def no_agent_in_path(path):
 
     return len(paths_agents), paths_agents
 
-
 def get_name(path):
     '''
         Gathers information on the number of agents in the specified path and also separates between target 
@@ -121,12 +116,6 @@ def get_name(path):
             paths_agents.append(file)
 
     return paths_agents
-
-
-def mutual_information(agent_actions, partner_actions, no_obs):
-    '''Compares both vectors by calculating the mutual information'''
-    return 1 - metrics.normalized_mutual_info_score(agent_actions, agent_actions)
-
 
 def simple_match(actions_agent_a, actions_agent_b, no_obs):
     '''Compares both action vectors and calculates the number of matching actions'''
@@ -150,55 +139,53 @@ def calculate_diversity(
     path_to_partner, 
     observations,
     diversity_env, 
-    div_parallel_eval
-):
+    div_parallel_eval):
     
     # Get the names and numbers of partners from the pool
     n_partners, names = no_agent_in_path(path_to_partner)
     partners = [[self_play_agent for _ in range(2)] for _ in range(n_partners) ]
-    
+
     print('Evaluating {} agents from the following given files {}'.format(
         n_partners, names))
+
     # Restore the weight for each partner in the pool
     for i in range(n_partners):
         for agent in partners[i]:
             location = os.path.join(path_to_partner, names[i])
             agent.restore_weights(location, location)
+
+    # Create a population so that our agent is at index 0
+    population = [agents]
+    for partner in partners:
+        population.append(partner)
+
+    # Get the actions by each member of the population
+    action_matrix = []
+    for agent in population: 
+        actions = [agent[0].exploit(o) for o in observations]
+        action_matrix.append(actions)
+
+    action_matrix = np.array(action_matrix)
     
-    # Calculate and store the diversity of our agent with each partner
+    # Flatten the actions to get a single list for each index in the
+    # matrix
+    action_mat = [action.flatten() for action in action_matrix]
+
+    # Calculate the diveristy between the current agent and each partner 
+    # based on the actions
     diversity = []
-    for i in range(n_partners):
-        population = [agents, partners[i]]
-        action_matrix = []
-        
-        for i in range(len(population)):
-            diversity_session = hmf.HanabiParallelSession(diversity_env, population[i])
-            total_reward = diversity_session.run_eval(
-                print_intermediate = False,
-                print_agent = False
-            )
-
-            actions = []
-            #feed set of predefined obs to each agent and saves results to list
-            for o in observations:
-                actions.append(agents[0].exploit(o))
-
-            action_matrix.append(actions)
-
-        action_matrix = np.array(action_matrix)
-        action_mat = []
-
-        for action in action_matrix:
-            action_mat.append(action.flatten())
-
-        no_obs_test = len(observations) * len(population) * div_parallel_eval
+    for i in range(1,len(action_mat)):
+        no_obs_test = len(observations) * 2 * div_parallel_eval
         diversity.append(
             simple_match(
-                action_mat[0], action_mat[1], no_obs_test)
-        ) 
-
+                action_mat[0], 
+                action_mat[i], 
+                no_obs_test
+        ))
+        
     print(f"Diversity with each partner : {diversity}")
     print(f"Average Diversity           : {np.mean(diversity)}")
+    
     # Return the mean diversity of the agent with all the partners in the pool
     return np.mean(diversity)
 
@@ -226,18 +213,19 @@ def session(
             path_to_obs: str = "./Agents/Observations", 
             div_parallel_eval: int = 100,
             div_factor: float = 1.0,
-            log_diversity: bool = False
+            log_diversity: bool = False,
+            invert_diversity: bool = False
 
-    ):
+    ):  # sourcery no-metrics
     
     print(epochs, n_parallel, n_parallel_eval)
-    
+
     # create folder structure
     os.makedirs(os.path.join(output_dir, "weights"))
     os.makedirs(os.path.join(output_dir, "stats"))
     for i in range(n_players):
         os.makedirs(os.path.join(output_dir, "weights", "agent_" + str(i)))
-    
+
     #logger
     logger = logging.getLogger('Training_Log')
     logger.setLevel(logging.DEBUG)
@@ -250,16 +238,16 @@ def session(
     # create hanabi environment configuration
     # env_conf = make_hanabi_env_config('Hanabi-Small-CardKnowledge', n_players)
     env_conf = make_hanabi_env_config(hanabi_game_type, n_players)
-    
+
     # If the maximum tokens are not none, load them up
     if max_life_tokens is not None:
             env_conf["max_life_tokens"] = str(max_life_tokens)
     logger.info('Game Config\n' + str(env_conf))
-            
+
     # create training and evaluation parallel environment
     env = hmf.HanabiParallelEnvironment(env_conf, n_parallel)
     eval_env = hmf.HanabiParallelEnvironment(env_conf, n_parallel_eval)
-    
+
     # Another parallel environment for calculating diversity
     diversity_env = hmf.HanabiParallelEnvironment(env_conf, div_parallel_eval * 2)
     with gin.config_scope('agent_0'):
@@ -267,9 +255,9 @@ def session(
 
     # get agent and reward shaping configurations
     if self_play:
-        
+
         with gin.config_scope('agent_0'):
-            
+
             self_play_agent = load_agent(env)
             if restore_weights is not None:
                 self_play_agent.restore_weights(restore_weights, restore_weights)
@@ -278,38 +266,38 @@ def session(
             logger.info("Agent Config\n" + str(self_play_agent))
             logger.info("Reward Shaper Config\n" +
                         str(self_play_agent.reward_shaper))
-    
+
     else:
-        
+
         agents = []
         logger.info("multi play")
-    
+
         for i in range(n_players):
             with gin.config_scope('agent_'+str(i)): 
                 agent = load_agent(env)
                 logger.info("Agent Config " + str(i) + " \n" + str(agent))
                 logger.info("Reward Shaper Config\n" + str(agent.reward_shaper))
                 agents.append(agent)
-                
+
     # load previous weights            
     if start_with_weights is not None:
         print(start_with_weights)
         for aid, agent in enumerate(agents):
             if "agent_" + str(aid) in start_with_weights:
                 agent.restore_weights(*(start_with_weights["agent_" + str(aid)]))
-    
+
     # start parallel session for training and evaluation          
     parallel_session = hmf.HanabiParallelSession(env, agents)
     parallel_session.reset()
     parallel_eval_session = hmf.HanabiParallelSession(eval_env, agents)
 
-    
-    
+
+
     print("Game config", parallel_session.parallel_env.game_config)
-    
+
     # evaluate the performance before training
     mean_reward_prev = parallel_eval_session.run_eval().mean()
-    
+
     # calculate warmup period
     n_warmup = int(350 * n_players / n_parallel)
 
@@ -319,17 +307,18 @@ def session(
     stacker = [self_play_agent.create_stacker(
         diversity_env.observation_len, diversity_env.num_states)]
 
-    obs = []
-    for o in div_obs:
-        obs.append(preprocess_obs_for_agent(o, self_play_agent, stacker[0], diversity_env))
+    obs = [
+        preprocess_obs_for_agent(o, self_play_agent, stacker[0], diversity_env)
+        for o in div_obs
+    ]
 
     # start time
     start_time = time.time()
-    
+
     diversity_tracker = []
-    # start training
+    # start training - epochs control the total training steps 
     for epoch in range(epoch_offset, epochs + epoch_offset):
-        
+
         # Calculate Diversity
         diversity = calculate_diversity(
             diversity_env= diversity_env, 
@@ -349,27 +338,39 @@ def session(
                                 diversity_tracker)
 
         # Train
-        parallel_session.train( n_iter=eval_freq,
-                                n_sim_steps=n_sim_steps,
-                                n_train_steps=n_train_steps,
-                                n_warmup=n_warmup,
-                                diversity=diversity, 
-                                factor=div_factor
-                                )
-        
+        if invert_diversity:
+            parallel_session.train( 
+                n_iter=eval_freq,
+                n_sim_steps=n_sim_steps,
+                n_train_steps=n_train_steps,
+                n_warmup=n_warmup,
+                diversity= 1. / diversity, 
+                factor=div_factor
+            )
+            
+        else:
+            parallel_session.train(
+                n_iter=eval_freq,
+                n_sim_steps=n_sim_steps,
+                n_train_steps=n_train_steps,
+                n_warmup=n_warmup,
+                diversity=diversity,
+                factor=div_factor
+            )
+
 
         # np.save(os.path.join(output_dir, "stats", str(epoch)) + "_training_rewards.npy", rewards)
 
 
         # no warmup after epoch 0
         n_warmup = 0
-        
+
         # print number of train steps
         if self_play:
             print("step", (epoch + 1) * eval_freq * n_train_steps * n_players)
         else:
             print("step", (epoch + 1) * eval_freq * n_train_steps)
-        
+
         # evaluate
         mean_reward = parallel_eval_session.run_eval(
             dest=os.path.join(output_dir, "stats", str(epoch)),
@@ -380,32 +381,32 @@ def session(
 
         # compare to previous iteration and store checkpoints
         if (epoch + 1) % n_backup == 0:
-            
+
             print('save weights', epoch)
-            
+
             if self_play:
                 agents[0].save_weights(
                     os.path.join(output_dir, "weights", "agent_0"), 
                     "ckpt_" + str(agents[0].train_step))
-                
+
             else:
                 for aid, agent in enumerate(agents):
                     agent.save_weights(
                         os.path.join(output_dir, "weights", "agent_" + str(aid)), 
                         "ckpt_" + str(agents[0].train_step))
-                    
+
         # store the best network
         if mean_reward_prev < mean_reward:
-            
+
             if self_play:
                 agents[0].save_weights(
                     os.path.join(output_dir, "weights", "agent_0"), "best") 
-                
+
             else:
                 for aid, agent in enumerate(agents):
                     agent.save_weights(
                         os.path.join(output_dir, "weights", "agent_" + str(aid)), "best") 
-                    
+
             mean_reward_prev = mean_reward
 
         # logging
@@ -499,6 +500,10 @@ if __name__ == "__main__":
         help = "Store Diveristy over the epochs"
     )
 
+    parser.add_argument(
+        "--invert_diversity", default=False, action='store_true',
+        help="Use Inversion of diversity for minimization"
+    )
 
     args = parser.parse_args()
 
