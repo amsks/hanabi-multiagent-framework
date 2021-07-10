@@ -268,7 +268,7 @@ def session(
                 logger.info("Reward Shaper Config\n" + str(agent.reward_shaper))
                 agents.append(agent)
 
-    print(agent[0].buffersize, agent[0].alpha, agent[0].lr)
+    print(agents[0].buffersize, agents[0].alpha, agents[0].lr)
     alive_count = None       
     # load previous weights            
     if start_with_weights is not None:
@@ -277,7 +277,7 @@ def session(
             if "agent_" + str(aid) in start_with_weights:
                 alive_count = agent.restore_weights(*(start_with_weights["agent_" + str(aid)]))
 
-    print(agent[0].buffersize, agent[0].alpha, agent[0].lr)
+    print(agents[0].buffersize, agents[0].alpha, agents[0].lr)
 
 
     # start parallel session for training and evaluation          
@@ -378,7 +378,7 @@ def session(
                     os.path.join(output_dir, "weights", "agent_0"), 
                     "ckpt_" + str(agents[0].train_step),
                     only_weights=only_weights,
-                    epochs_alive)
+                    epochs_alive= epochs_alive)
                 
             else:
                 for aid, agent in enumerate(agents):
@@ -400,87 +400,6 @@ def session(
                         os.path.join(output_dir, "weights", "agent_" + str(aid)), "best") 
                     
             # mean_reward_prev = mean_reward
-
-
-        #perform PBT
-        if epoch + 1 % pbt_params.generations == 0 and epoch > 0:
-            
-            print('>>>>>>>>>>>>>>>>>>>>>>. PBT <<<<<<<<<<<<<<<<<<<<')
-
-            def mutual_information(self, actions_agent_a, actions_agent_b):
-                '''Compares both vectors by calculating the mutual information'''
-                return 1 - metrics.normalized_mutual_info_score(actions_agent_a, actions_agent_b)
-
-            def simple_match(actions_agent_a, actions_agent_b):
-                '''Compares both action vectors and calculates the number of matching actions'''
-                return (1 - np.sum(actions_agent_a == actions_agent_b)/actions_agent_a.shape[0])
-
-            def cosine_distance(actions_agent_a, actions_agent_b):
-                pass
-
-            # 1. run_eval to generate observations -- done in rlax_agent
-            obs_diversity = np.vstack([agents[0].past_obs for i in range(agent_params.n_network)])
-            lms = np.vstack([agents[0].past_lms for i in range(agent_params.n_network)])
-            # print(obs_diversity.shape)
-            # 2. feed to current agents to get action vectors and diversity -- done
-                    # 2b. generate action vectors from path agents
-
-            action_vecs = agents[0].exploit([[], [obs_diversity, lms]], eval = True)[0].reshape(agent_params.n_network, -1)
-
-            # generate diversity matrix
-            diversity_matrix = [[] for i in range(action_vecs.shape[0])]
-            for i, elem in enumerate(action_vecs):
-                for vec in action_vecs:
-                    mut_info = simple_match(elem, vec)
-                    diversity_matrix[i].append(mut_info)
-            diversity_matrix = np.asarray(diversity_matrix)
-            np.fill_diagonal(diversity_matrix, 1)
-
-            # retrieve min values
-            div_minima = np.min(diversity_matrix, axis = 1)
-
-            # combine diversities with mean_rewards
-            # pbt_score = mean_reward +  1/(1 + np.exp(-(mean_reward - 2/3*max_score))) * population_params.w_diversity * div_minima
-            pbt_score = mean_reward
-            readiness = np.array(epochs_alive >= pbt_params.life_span)
-            helper_index = np.array(np.where(readiness))[0]
-            no_agents_pbt = np.sum(readiness) - int(np.sum(readiness) * pbt_params.discard_percent)
-
-            test1 = np.argpartition(pbt_score[readiness], no_agents_pbt)
-            test = helper_index[np.argpartition(pbt_score[readiness], no_agents_pbt)]
-
-            index_loser = helper_index[np.argpartition(pbt_score[readiness], no_agents_pbt)[:no_agents_pbt]]
-            index_survivor = helper_index[np.argpartition(-pbt_score[readiness], no_agents_pbt)[:no_agents_pbt]]
-            couples = define_couples(index_loser, index_survivor)
-            print(index_loser, 'losers')
-            print(index_survivor, 'survivors')
-            print('These are the agents to be exchanged (loser/winner) {}'.format(couples))
-
-
-            epochs_alive[index_loser] = 0
-            new_weights, new_states = perform_pbt(agents[0], ['lr', 'alpha', 'buffersize'], couples, pbt_params, index_loser, index_survivor)
-            # print(agents[0].trg_params)
-
-            agents[0].trg_params = new_weights
-            agents[0].online_params = new_weights
-            agents[0].opt_state = new_states
-
-
-            # print('>>>>>>>>>>>>>>>>>.')
-            # print(agents[0].trg_params)
-
-
-
-            # parallel_session = hmf.HanabiParallelSession(env, agents)
-            # parallel_session.reset()
-            # parallel_eval_session = hmf.HanabiParallelSession(eval_env, agents)  
-            # parallel_eval_session.reset()
-
-            print('EVAL AFTER PBT')
-            reward_pbt_test = parallel_eval_session.run_eval()
-            split_evaluation(reward_pbt_test, agent_params.n_network, mean_reward_prev)
-       
-
 
 
         # logging

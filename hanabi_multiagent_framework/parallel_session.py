@@ -9,7 +9,7 @@ import numpy as np
 from dm_env import StepType
 from .agent import HanabiAgent
 from .environment import HanabiParallelEnvironment
-# from .experience_buffer import ExperienceBuffer
+from .experience_buffer import ExperienceBuffer
 from .utils import eval_pretty_print
 from hanabi_agents.rlax_dqn import RewardShaper, ShapingType
 from _cffi_backend import typeof
@@ -85,12 +85,12 @@ class HanabiParallelSession:
             if stack is not None:
                 stack.reset()
 
-    def run_eval(   self, 
-                    dest: str = None, 
-                    print_intermediate: bool = True,
-                    store_steps: bool = True,
-                    store_moves: bool = True,
-                    n_chunk: int = 1    ) -> np.ndarray:
+    def run_eval(self, 
+                 dest: str = None, 
+                 print_intermediate: bool = True,
+                 store_steps: bool = True,
+                 store_moves: bool = True,
+                 n_chunk: int = 1) -> np.ndarray:
         """Run each state until the end and return the final scores.
         Args:
             print_intermediate -- Flag indicating whether each step of evaluation should be printed.
