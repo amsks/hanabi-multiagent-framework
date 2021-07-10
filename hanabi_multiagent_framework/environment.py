@@ -16,10 +16,12 @@ class HanabiParallelEnvironment:
         self.n_players = self._parallel_env.parent_game.num_players
         self.step_types = None
         self.last_observation = None
+        self.max_score = self._parallel_env.parent_game.num_ranks * \
+            self._parallel_env.parent_game.num_colors
 
-    def step(self,
-             actions: Union[List[pyhanabi.HanabiMove], List[int]],
-             agent_id: int
+    def step(   self,
+                actions: Union[List[pyhanabi.HanabiMove], List[int]],
+                agent_id: int
             ) -> Tuple[List[pyhanabi.HanabiObservation], np.ndarray, np.ndarray]:
         """Take one step in all game states.
         Args:
@@ -27,15 +29,15 @@ class HanabiParallelEnvironment:
             agent_id -- id of the agent taking the actions.
         Return:
             a tuple consisting of:
-              - observation array
-              - reward array
-              - step_type array
+                - observation array
+                - reward array
+                - step_type array
         """
 
         last_score = np.array(self._parallel_env.get_scores())
 
         # Detect any illegal moves
-        #  moves_illegal = np.logical_not(self._parallel_env.moves_are_legal(actions))
+        # moves_illegal = np.logical_not(self._parallel_env.moves_are_legal(actions))
 
         # Replace illegal moves with legal ones. This is done to avoid exceptions in the underlying
         # hanabi learning environment which assumes that the client handles the exception and always
@@ -44,7 +46,9 @@ class HanabiParallelEnvironment:
         # illegal moves as follows:
         # Illegal moves are considered as loosing the game immediately and are punished as such.
         # The corresponding states are marked as terminal and should be restarted.
-        self._parallel_env.step(actions, agent_id, (agent_id + 1) % self.n_players)
+
+        self._parallel_env.step(
+            actions, agent_id, (agent_id + 1) % self.n_players)
         moves_illegal = self._parallel_env.illegal_moves
 
         # Observe next agent
@@ -53,13 +57,37 @@ class HanabiParallelEnvironment:
 
         # Reward is the score differential. May be large and negative at game end.
         reward = score - last_score
-        # illegal moves are punished as loosing the game
-        reward[moves_illegal] = -last_score[moves_illegal]
+
+        # print("BLAH BLAH BLAH ------------------->>>>>>>>>>>>")
+
+        # print(f"Max Score -------> {max_score}")
+        # illegal moves are punished as loosing the game -> fixed reward of the negative of the maximum score
+        # Achievable in the game
+
+        reward[moves_illegal] = - (self.max_moves)
+        # print(f"Moves Illegal  -----> {np.any(moves_illegal)}")
+        # print(f"reward[moves_illegal] -----> {reward[moves_illegal]}")
+
+        # Finishing up life tokens results in Death and resetting the score to some fixed negative reward or some
+        # other variabel reward -> Need to be tested
+        out_of_life = np.array(self._parallel_env.get_state_statuses()) \
+            == pyhanabi.HanabiState.EndOfGameType.kOutOfLifeTokens
+
+        reward[out_of_life] = - (self.max_score)
+
+        # print(f"out_of_life ------> {np.any(out_of_life)}")
+        # print(f"reward[out_of_life] -------> {reward[out_of_life]}")
+
+        not_finished = np.array(self._parallel_env.get_state_statuses()) \
+            != pyhanabi.HanabiState.EndOfGameType.kNotFinished
 
         terminal = np.logical_or(
             moves_illegal,
-            np.array(self._parallel_env.get_state_statuses()) \
-                != pyhanabi.HanabiState.EndOfGameType.kNotFinished)
+            not_finished
+        )
+
+        # print(f"{np.any(moves_illegal)}, {np.any(out_of_life)}, {np.any(not_finished)}")
+        # print(f"Unique Statuses - - -> {np.any(out_of_life)}")
 
         self.step_types = np.full((self.num_states,), StepType.MID)
         self.step_types[terminal] = StepType.LAST

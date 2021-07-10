@@ -378,7 +378,7 @@ def session(
                     os.path.join(output_dir, "weights", "agent_0"), 
                     "ckpt_" + str(agents[0].train_step),
                     only_weights=only_weights,
-                    epochs_alive)
+                    epochs_alive=epochs_alive)
                 
             else:
                 for aid, agent in enumerate(agents):
