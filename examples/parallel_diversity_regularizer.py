@@ -473,8 +473,7 @@ def session(
     mean_reward = split_evaluation(
         total_reward, agent_params.n_network, mean_reward_prev)
     # mean_reward_prev = parallel_eval_session.run_eval().mean()
-    if len(obs_db) == 0:
-        obs_db = None
+    
     # calculate warmup period
     n_warmup = int(350 * n_players / n_parallel) + n_players
 
@@ -509,6 +508,9 @@ def session(
     # obs_db = []
     # start training
     for epoch in range(epoch_offset+4, epochs + epoch_offset, 5):
+
+        if len(obs_db) == 0:
+            obs_db = None
 
         # Calculate Diversity
         diversity = calculate_diversity(
@@ -563,14 +565,15 @@ def session(
         print(mean_reward_prev, mean_reward)
         mean_reward_prev = add_reward(mean_reward_prev, mean_reward)
         output_path = os.path.join(output_dir, "stats", str(epoch))
-        total_reward , observations = parallel_eval_session.run_eval(
+        total_reward , obs_db = parallel_eval_session.run_eval(
             dest=output_path,
             store_steps=False,
             store_moves=True,
             log_observation=log_observation
         )
         
-        obs_db = observations
+        print(obs_db)
+        # obs_db = observations
         mean_reward = split_evaluation(
             total_reward, agent_params.n_network, mean_reward_prev)
 
