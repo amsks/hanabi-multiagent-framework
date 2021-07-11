@@ -345,6 +345,11 @@ class HanabiParallelSession:
             actions = agent.explore(obs)
             
             # apply actions to the states and get new observations, rewards, statuses.
+            
+            # NOTE Since PPO needs to handle log probabilities, we have used the  
+            # actions as a tuple of actions and log probabilties 
+            # and updated the Experience buffer to also store the log probabilities 
+            # as part of the transitions 
             if agent.type == 'PPO':
                 self._cur_obs, rewards, step_types = \
                     self.parallel_env.step(
