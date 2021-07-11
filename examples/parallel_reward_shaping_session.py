@@ -1,3 +1,7 @@
+"""
+Script to train parallel agents together
+"""
+
 import os
 import numpy as np
 import gin
@@ -39,8 +43,8 @@ def load_agent(env):
 
         def sample_buffersize(pbt_params, agent_params):
             exp_factor = math.log(agent_params.experience_buffer_size, 2)
-            buffer_sizes_start = [2**i for i in range(  int(exp_factor) - pbt_params.buffersize_start_factor,
-                                                        int(exp_factor) + pbt_params.buffersize_start_factor)]
+            buffer_sizes_start = [2**i for i in range(int(exp_factor) - pbt_params.buffersize_start_factor,
+                                                      int(exp_factor) + pbt_params.buffersize_start_factor)]
             return random.choice(buffer_sizes_start)
 
         def sample_init_lr(pbt_params):
@@ -215,11 +219,11 @@ def session(
     epoch_offset=0,
     eval_freq: int = 500,
     self_play: bool = True,
-    output_dir: str ="/output",
+    output_dir: str = "/output",
     start_with_weights: bool = None,
     n_backup: int = 500,
     restore_weights: bool = None,
-    log_observation: bool = False, ):  # sourcery no-metrics
+        log_observation: bool = False, ):  # sourcery no-metrics
 
     if hanabi_game_type == 'Hanabi-Full':
         max_score = 25

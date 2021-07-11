@@ -362,11 +362,13 @@ class HanabiParallelSession:
         return cur_step, total_reward
 
 
-    def train(self,
-              n_iter: int,
-              n_sim_steps: int,
-              n_train_steps: int,
-              n_warmup: int):
+    def train(  self,
+                n_iter: int,
+                n_sim_steps: int,
+                n_train_steps: int,
+                n_warmup: int,
+                factor: float = 1,
+                diversity: float=0. ) -> None:
         """Train agents.
 
         Args:
@@ -383,7 +385,10 @@ class HanabiParallelSession:
             self.run(n_sim_steps)
             for _ in range(n_train_steps):
                 for agent in self.agents.agents:
-                    agent.update()         
+                    agent.update(
+                        factor=factor,
+                        diversity=diversity
+                    )         
                     
     def preprocess_obs_for_agent(self, obs, agent, stack):
         
