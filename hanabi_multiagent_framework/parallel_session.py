@@ -149,7 +149,7 @@ class HanabiParallelSession:
             obs = self.preprocess_obs_for_agent(self._cur_obs, agent, self.stacker_eval[agent_id])
             
             if log_observation == True:
-                obs_db.append(self._cur_obs)
+                obs_db.append(obs)
             # agent selects action
             actions, q_values = agent.exploit(obs)
             

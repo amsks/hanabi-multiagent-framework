@@ -152,6 +152,7 @@ def calculate_diversity(
     # based on the actions
     diversity = []
     for i in range(1, len(action_mat)):
+        
         no_obs_test = len(observations) * 2 * div_parallel_eval
         diversity.append(
             simple_match(
@@ -159,7 +160,8 @@ def calculate_diversity(
                 action_mat[i],
                 no_obs_test
             ))
-
+        
+    print(f"Observation Length : {len(observations)}")
     print(f"Diversity with each partner : {diversity}")
     print(f"Average Diversity           : {np.mean(diversity)}")
 
@@ -467,11 +469,12 @@ def session(
     mean_reward_prev = np.zeros(
         (agent_params.n_network, pbt_params.n_mean))
     print(mean_reward_prev)
-    total_reward = parallel_eval_session.run_eval()
+    total_reward, obs_db = parallel_eval_session.run_eval()
     mean_reward = split_evaluation(
         total_reward, agent_params.n_network, mean_reward_prev)
     # mean_reward_prev = parallel_eval_session.run_eval().mean()
-
+    if len(obs_db) == 0:
+        obs_db = None
     # calculate warmup period
     n_warmup = int(350 * n_players / n_parallel) + n_players
 
@@ -482,15 +485,17 @@ def session(
         diversity_env.observation_len, diversity_env.num_states)]
 
     # Preprocess all hte observations stored in the db
-    # obs = [
-    #     preprocess_obs_for_agent(
-    #         div_obs[0], self_play_agent, stacker[0], diversity_env)
-    #     for o in div_obs
-    # ]
+    obs = [
+        preprocess_obs_for_agent(
+            div_obs[0], self_play_agent, stacker[0], diversity_env)
+        for o in div_obs
+    ]
 
-    obs = preprocess_obs_for_agent(
-                div_obs[0], self_play_agent, stacker[0], diversity_env)
-    
+    obs = [
+        preprocess_obs_for_agent(
+            0, self_play_agent, stacker[0], diversity_env
+        ) for o in div_obs 
+    ]
     diversity_tracker = []
 
     # start time
@@ -501,7 +506,7 @@ def session(
         a.store_td = epoch_offset < 50
     print('store TD', agents[0].store_td)
 
-    obs_db = []
+    # obs_db = []
     # start training
     for epoch in range(epoch_offset+4, epochs + epoch_offset, 5):
 
@@ -518,9 +523,9 @@ def session(
         diversity_tracker.append(diversity)
 
         if log_diversity:
-            np.save(os.path.join(output_dir,
-                                 "stats",
-                                 ) + "/diversity.npy",
+            np.save(os.path.join(   output_dir,
+                                    "stats",
+                                    ) + "/diversity.npy",
                     diversity_tracker)
 
         # Train with Diversity Regularizer
