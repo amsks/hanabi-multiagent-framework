@@ -85,12 +85,16 @@ class HanabiParallelSession:
             if stack is not None:
                 stack.reset()
 
-    def run_eval(self, 
-                 dest: str = None, 
-                 print_intermediate: bool = True,
-                 store_steps: bool = True,
-                 store_moves: bool = True,
-                 n_chunk: int = 1) -> np.ndarray:
+    def run_eval(   self, 
+                    dest: str = None, 
+                    print_intermediate: bool = True,
+                    store_steps: bool = True,
+                    store_moves: bool = True,
+                    n_chunk: int = 1,
+                    log_observation: bool = False,
+                    print_agent: bool = True
+                ) -> np.ndarray:
+        
         """Run each state until the end and return the final scores.
         Args:
             print_intermediate -- Flag indicating whether each step of evaluation should be printed.
@@ -105,6 +109,7 @@ class HanabiParallelSession:
         total_shaped_reward = np.zeros((self.n_states,))
         step_rewards = []
         playability = [[] for i in range(self.n_states)]
+        obs_db = []
         
         # values that are calculated if move_eval is requested
         if store_moves:
@@ -141,6 +146,8 @@ class HanabiParallelSession:
             # get vectorized form of object and add to stacker
             obs = self.preprocess_obs_for_agent(self._cur_obs, agent, self.stacker_eval[agent_id])
             
+            if log_observation == True:
+                obs_db.append(self._cur_obs)
             # agent selects action
             actions, q_values = agent.exploit(obs)
             
@@ -215,16 +222,16 @@ class HanabiParallelSession:
             
             if print_intermediate or store_steps:
                 step_rewards.append(
-                    {"terminated": np.sum(done),
-                     "rewards" : reward[valid_states],
-                     "play": np.sum(np.array(play_moves)[valid_states]),
-                     "risky": np.sum(risky_moves[valid_states]),
-                     "discard": np.sum(np.array(discard_moves)[valid_states]), 
-                     "bad_discards":  np.sum(bad_discards[valid_states]),
-                     "reveal_options": np.sum(np.array(reveal_options)[valid_states]),
-                     "reveal": np.sum(np.array(reveal_moves)[valid_states]),
-                     "playability": step_playability,
-                     "agent_id": agent_id})
+                    {   "terminated": np.sum(done),
+                        "rewards" : reward[valid_states],
+                        "play": np.sum(np.array(play_moves)[valid_states]),
+                        "risky": np.sum(risky_moves[valid_states]),
+                        "discard": np.sum(np.array(discard_moves)[valid_states]), 
+                        "bad_discards":  np.sum(bad_discards[valid_states]),
+                        "reveal_options": np.sum(np.array(reveal_options)[valid_states]),
+                        "reveal": np.sum(np.array(reveal_moves)[valid_states]),
+                        "playability": step_playability,
+                        "agent_id": agent_id})
 
             step += 1
             
@@ -239,6 +246,10 @@ class HanabiParallelSession:
             np.save(dest + "_total_rewards.npy", total_reward)
             np.save(dest + "_total_shaped_rewards.npy", total_shaped_reward)
             np.save(dest + "_expected_reward.npy", expected_reward)
+            
+            if log_observation == True:
+                with open(dest + "_observations.pkl", "wb") as f:
+                    pickle.dump(obs_db, f)
             
             if store_steps:
                 np.save(dest + "_step_rewards.npy", step_rewards)

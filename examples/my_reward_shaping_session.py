@@ -39,8 +39,8 @@ def load_agent(env):
 
         def sample_buffersize(pbt_params, agent_params):
             exp_factor = math.log(agent_params.experience_buffer_size, 2)
-            buffer_sizes_start = [2**i for i in range(int(exp_factor) - pbt_params.buffersize_start_factor,
-                                                      int(exp_factor) + pbt_params.buffersize_start_factor)]
+            buffer_sizes_start = [2**i for i in range(  int(exp_factor) - pbt_params.buffersize_start_factor,
+                                                        int(exp_factor) + pbt_params.buffersize_start_factor)]
             return random.choice(buffer_sizes_start)
 
         def sample_init_lr(pbt_params):
@@ -66,9 +66,9 @@ def load_agent(env):
                             agent_params,
                             reward_shaper)
 
-    elif agent_type.type == 'rulebased':
-        agent_params = RulebasedParams()
-        return RulebasedAgent(agent_params.ruleset)
+    # elif agent_type.type == 'rulebased':
+    #     agent_params = RulebasedParams()
+    #     return RulebasedAgent(agent_params.ruleset)
 
 
 def split_evaluation(total_reward, n_network, prev_rew):
@@ -105,6 +105,7 @@ def define_couples(index_loser, index_survivor):
 
 
 def perform_pbt(agent, hyperparams, couples, pbt_params, index_loser, index_survivor):
+    # sourcery no-metrics
     weights = agent.trg_params
     opt_states = agent.opt_state[0]
 
@@ -214,11 +215,11 @@ def session(
     epoch_offset=0,
     eval_freq: int = 500,
     self_play: bool = True,
-    output_dir="/output",
-    start_with_weights=None,
-    n_backup=500,
-    restore_weights=None
-):
+    output_dir: str ="/output",
+    start_with_weights: bool = None,
+    n_backup: int = 500,
+    restore_weights: bool = None,
+    log_observation: bool = False, ):  # sourcery no-metrics
 
     if hanabi_game_type == 'Hanabi-Full':
         max_score = 25
@@ -354,7 +355,8 @@ def session(
         total_reward = parallel_eval_session.run_eval(
             dest=output_path,
             store_steps=False,
-            store_moves=False
+            store_moves=True,
+            log_observation=log_observation
         )
         mean_reward = split_evaluation(
             total_reward, agent_params.n_network, mean_reward_prev)
@@ -581,6 +583,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--start_with_weights", type=json.loads, default=None,
         help="Initialize the agents with the specified weights before training. Syntax: {\"agent_0\" : [\"path/to/weights/1\", ...], ...}")
+
+    parser.add_argument(
+        "--log_observation", default=False, action='store_true',
+        help="Set true to log observation objects"
+    )
 
     args = parser.parse_args()
 
