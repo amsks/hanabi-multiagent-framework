@@ -272,7 +272,7 @@ class HanabiParallelSession:
             if agent.reward_shaper is not None:
                 agent.reward_shaper.performance = np.mean(total_reward)  
         
-        return total_reward
+        return total_reward, obs_db
 
 
     def run(self, n_steps: int):

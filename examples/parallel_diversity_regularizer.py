@@ -78,7 +78,7 @@ def get_name(path):
 
     for file in os.listdir(path):
         '''Supposes that agent weights have been stored with "target" as some part of their name'''
-        if 'target' in str(file):
+        if 'target' in str(file) or 'rainbow' in str(file):
             paths_agents.append(file)
 
     return paths_agents
@@ -110,6 +110,10 @@ def calculate_diversity(
         diversity_env,
         div_parallel_eval):
 
+    if observations is None:
+        print("Diversity is None")
+        return 0
+    
     # Get the names and numbers of partners from the pool
     n_partners, names = no_agent_in_path(path_to_partner)
     partners = [[self_play_agent for _ in range(2)] for _ in range(n_partners)]
@@ -131,9 +135,13 @@ def calculate_diversity(
     # Get the actions by each member of the population
     action_matrix = []
     for agent in population:
-        actions = [agent[0].exploit(o) for o in observations]
-        action_matrix.append(actions)
+        actions = []
+        for o in observations:
+            action, _ = agent[0].exploit(o) 
+            actions.append(action)
 
+        action_matrix.append(actions)
+        
     action_matrix = np.array(action_matrix)
 
     # Flatten the actions to get a single list for each index in the
@@ -179,7 +187,7 @@ def load_agent(env):
         def sample_buffersize(pbt_params, agent_params):
             exp_factor = math.log(agent_params.experience_buffer_size, 2)
             buffer_sizes_start = [2**i for i in range(int(exp_factor) - pbt_params.buffersize_start_factor,
-                                                      int(exp_factor) + pbt_params.buffersize_start_factor)]
+                                                        int(exp_factor) + pbt_params.buffersize_start_factor)]
             return random.choice(buffer_sizes_start)
 
         def sample_init_lr(pbt_params):
@@ -473,11 +481,16 @@ def session(
     stacker = [self_play_agent.create_stacker(
         diversity_env.observation_len, diversity_env.num_states)]
 
-    obs = [
-        preprocess_obs_for_agent(o, self_play_agent, stacker[0], diversity_env)
-        for o in div_obs
-    ]
+    # Preprocess all hte observations stored in the db
+    # obs = [
+    #     preprocess_obs_for_agent(
+    #         div_obs[0], self_play_agent, stacker[0], diversity_env)
+    #     for o in div_obs
+    # ]
 
+    obs = preprocess_obs_for_agent(
+                div_obs[0], self_play_agent, stacker[0], diversity_env)
+    
     diversity_tracker = []
 
     # start time
@@ -488,6 +501,7 @@ def session(
         a.store_td = epoch_offset < 50
     print('store TD', agents[0].store_td)
 
+    obs_db = []
     # start training
     for epoch in range(epoch_offset+4, epochs + epoch_offset, 5):
 
@@ -496,7 +510,7 @@ def session(
             diversity_env=diversity_env,
             agents=parallel_session.agents.agents,
             self_play_agent=div_agent,
-            observations=obs,
+            observations=obs_db,
             path_to_partner=path_to_partner,
             div_parallel_eval=div_parallel_eval
         )
@@ -544,12 +558,14 @@ def session(
         print(mean_reward_prev, mean_reward)
         mean_reward_prev = add_reward(mean_reward_prev, mean_reward)
         output_path = os.path.join(output_dir, "stats", str(epoch))
-        total_reward = parallel_eval_session.run_eval(
+        total_reward , observations = parallel_eval_session.run_eval(
             dest=output_path,
             store_steps=False,
             store_moves=True,
             log_observation=log_observation
         )
+        
+        obs_db = observations
         mean_reward = split_evaluation(
             total_reward, agent_params.n_network, mean_reward_prev)
 
