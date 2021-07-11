@@ -17,6 +17,8 @@ import timeit
 from hanabi_learning_environment import pyhanabi_pybind as pyhanabi
 import time
 
+import dill as pickle
+
 class HanabiParallelSession:
     """
     A class for running parallel game sessions
