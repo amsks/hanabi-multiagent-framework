@@ -108,7 +108,8 @@ def calculate_diversity(
         path_to_partner,
         observations,
         diversity_env,
-        div_parallel_eval):
+        div_parallel_eval,
+        n_networks = 5):
 
     if observations is None:
         print("Diversity is None")
@@ -141,12 +142,17 @@ def calculate_diversity(
             actions.append(action)
 
         action_matrix.append(actions)
-        
+    
+    # for agent in population:
+    #     actions, _ = agent[0].exploit(observations)
+    #     action_matrix.append(actions)
+    
     action_matrix = np.array(action_matrix)
 
     # Flatten the actions to get a single list for each index in the
     # matrix
     action_mat = [action.flatten() for action in action_matrix]
+    print(f"action_matrix ---> {len(action_mat[0])} ---> {len(action_mat[1])}" )
 
     # Calculate the diveristy between the current agent and each partner
     # based on the actions
@@ -371,7 +377,7 @@ def session(
     restore_weights: bool = None,
     log_observation: bool = False,
     path_to_partner: str = "./Agents/Database",
-    path_to_obs: str = "./Agents/Observations",
+    # path_to_obs: str = "./Agents/Observations",
     div_parallel_eval: int = 100,
     div_factor: float = 1.0,
     log_diversity: bool = False,
@@ -479,22 +485,22 @@ def session(
 
     ## Initializing diversity locations
     # div_agents = [self_play_agent for _ in range(2)]
-    div_obs = load_obs(path_to_obs)[0]
-    stacker = [self_play_agent.create_stacker(
-        diversity_env.observation_len, diversity_env.num_states)]
+    # div_obs = load_obs(path_to_obs)[0]
+    # stacker = [self_play_agent.create_stacker(
+    #     diversity_env.observation_len, diversity_env.num_states)]
 
     # Preprocess all hte observations stored in the db
-    obs = [
-        preprocess_obs_for_agent(
-            div_obs[0], self_play_agent, stacker[0], diversity_env)
-        for o in div_obs
-    ]
+    # obs = [
+    #     preprocess_obs_for_agent(
+    #         div_obs[0], self_play_agent, stacker[0], diversity_env)
+    #     for o in div_obs
+    # ]
 
-    obs = [
-        preprocess_obs_for_agent(
-            0, self_play_agent, stacker[0], diversity_env
-        ) for o in div_obs 
-    ]
+    # obs = [
+    #     preprocess_obs_for_agent(
+    #         0, self_play_agent, stacker[0], diversity_env
+    #     ) for o in div_obs 
+    # ]
     diversity_tracker = []
 
     # start time
@@ -512,6 +518,7 @@ def session(
         if len(obs_db) == 0:
             obs_db = None
 
+        print(f"Length of Observation Fed ------>{len(obs_db)}")
         # Calculate Diversity
         diversity = calculate_diversity(
             diversity_env=diversity_env,
@@ -519,9 +526,10 @@ def session(
             self_play_agent=div_agent,
             observations=obs_db,
             path_to_partner=path_to_partner,
-            div_parallel_eval=div_parallel_eval
+            div_parallel_eval=n_parallel_eval
         )
 
+        # diversity = 0
         diversity_tracker.append(diversity)
 
         if log_diversity:
@@ -565,14 +573,14 @@ def session(
         print(mean_reward_prev, mean_reward)
         mean_reward_prev = add_reward(mean_reward_prev, mean_reward)
         output_path = os.path.join(output_dir, "stats", str(epoch))
-        total_reward , obs_db = parallel_eval_session.run_eval(
+        total_reward , obs = parallel_eval_session.run_eval(
             dest=output_path,
             store_steps=False,
             store_moves=True,
             log_observation=log_observation
         )
         
-        print(obs_db)
+        
         # obs_db = observations
         mean_reward = split_evaluation(
             total_reward, agent_params.n_network, mean_reward_prev)
@@ -806,10 +814,10 @@ if __name__ == "__main__":
         help="Path to load the weights of partner from a Database"
     )
 
-    parser.add_argument(
-        "--path_to_obs", type=str, default="../Agents/Observations",
-        help="Path to the observation database"
-    )
+    # parser.add_argument(
+    #     "--path_to_obs", type=str, default="../Agents/Observations",
+    #     help="Path to the observation database"
+    # )
 
     parser.add_argument(
         "--div_factor", type=float, default=1.,
