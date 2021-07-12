@@ -159,7 +159,7 @@ def calculate_diversity(
     diversity = []
     for i in range(1, len(action_mat)):
         
-        no_obs_test = len(observations) * 2 * div_parallel_eval
+        no_obs_test = len(observations) * div_parallel_eval
         diversity.append(
             simple_match(
                 action_mat[0],
