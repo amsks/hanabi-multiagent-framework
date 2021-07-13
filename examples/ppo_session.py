@@ -3,7 +3,7 @@ import numpy as np
 import gin
 import hanabi_multiagent_framework as hmf
 from hanabi_multiagent_framework.utils import make_hanabi_env_config
-from hanabi_agents.rlax_dqn import DQNAgent, RlaxRainbowParams, AgentType
+from hanabi_agents.ppo import PPO_Agent, PPOParams, AgentType
 from hanabi_learning_environment.pyhanabi_pybind import RewardShapingParams as ShapingParams
 from hanabi_learning_environment.pyhanabi_pybind import RewardShaper
 import logging
@@ -18,8 +18,7 @@ def RewardShapingParams(
     m_play_penalty: float = 0,
     w_play_reward: float = 0,
     m_play_reward: float = 0,
-    penalty_last_of_kind: float = 0
-):
+    penalty_last_of_kind: float = 0 ):
 
     if shaper:
 
@@ -41,27 +40,21 @@ def load_agent(env):
 
     # load reward shaping infos
     params = RewardShapingParams()
-    if params is not None:
-        reward_shaper = RewardShaper(params=params)
-    else:
-        reward_shaper = None
-
+    reward_shaper = RewardShaper(params=params) if params is not None else None
+    
     # load agent based on type
     agent_type = AgentType()
 
-    if agent_type.type == 'rainbow':
-        agent_params = RlaxRainbowParams()
-        return DQNAgent(env.observation_spec_vec_batch()[0],
-                        env.action_spec_vec(),
-                        agent_params,
-                        reward_shaper)
+    
+    agent_params = PPOParams()
+    return PPO_Agent(
+        env.observation_spec_vec_batch()[0],
+        env.action_spec_vec(),
+        agent_params,
+        reward_shaper   
+    )
 
-    elif agent_type.type == 'rulebased':
-        agent_params = RulebasedParams()
-        return RulebasedAgent(agent_params.ruleset)
-
-
-@gin.configurable(blacklist=['output_dir', 'self_play'])
+@gin.configurable(denylist=['output_dir', 'self_play'])
 def session(
     #agent_config_path=None,
     hanabi_game_type="Hanabi-Small",
@@ -72,14 +65,13 @@ def session(
     n_train_steps: int = 4,
     n_sim_steps: int = 2,
     epochs: int = 1_000_000,
-    epoch_offset=0,
+    epoch_offset: int =0,
     eval_freq: int = 500,
     self_play: bool = True,
     output_dir="./output",
     start_with_weights=None,
     n_backup=500,
-    restore_weights=None
-):
+    restore_weights=None    ):  # sourcery no-metrics
 
     print(epochs, n_parallel, n_parallel_eval)
 
@@ -99,11 +91,11 @@ def session(
     logger.addHandler(fh)
 
     # create hanabi environment configuration
-    # env_conf = make_hanabi_env_config('Hanabi-Small-CardKnowledge', n_players)
     env_conf = make_hanabi_env_config(hanabi_game_type, n_players)
 
     if max_life_tokens is not None:
         env_conf["max_life_tokens"] = str(max_life_tokens)
+    
     logger.info('Game Config\n' + str(env_conf))
 
     # create training and evaluation parallel environment
@@ -116,12 +108,13 @@ def session(
         with gin.config_scope('agent_0'):
 
             agent = load_agent(env)
+            # TODO -> Handle this in the agent file
             if restore_weights is not None:
                 agent.restore_weights(restore_weights, restore_weights)
             agents = [agent for _ in range(n_players)]
             logger.info("self play")
             logger.info("Agent Config\n" + str(agent))
-            logger.info("Reward Shaper Config\n" + str(agent.reward_shaper))
+            # logger.info("Reward Shaper Config\n" + str(agent.reward_shaper))
 
     else:
 
@@ -141,6 +134,7 @@ def session(
         print(start_with_weights)
         for aid, agent in enumerate(agents):
             if "agent_" + str(aid) in start_with_weights:
+                # TODO handle this in agent file 
                 agent.restore_weights(
                     *(start_with_weights["agent_" + str(aid)]))
 
@@ -164,10 +158,10 @@ def session(
     for epoch in range(epoch_offset, epochs + epoch_offset):
 
         # train
-        parallel_session.train(n_iter=eval_freq,
-                               n_sim_steps=n_sim_steps,
-                               n_train_steps=n_train_steps,
-                               n_warmup=n_warmup)
+        parallel_session.train( n_iter=eval_freq,
+                                n_sim_steps=n_sim_steps,
+                                n_train_steps=n_train_steps,
+                                n_warmup=n_warmup)
 
         # no warmup after epoch 0
         n_warmup = 0
@@ -198,8 +192,8 @@ def session(
             else:
                 for aid, agent in enumerate(agents):
                     agent.save_weights(
-                        os.path.join(output_dir, "weights",
-                                     "agent_" + str(aid)),
+                        os.path.join(   output_dir, "weights",
+                                        "agent_" + str(aid)),
                         "ckpt_" + str(agents[0].train_step))
 
         # store the best network
@@ -221,31 +215,6 @@ def session(
             epoch, time.time()-start_time, mean_reward))
         start_time = time.time()
 
-
-def linear_schedule(val_start, val_end, n_steps):
-
-    def schedule(step):
-        increase = (val_end - val_start) / n_steps
-        return min(val_end, val_start + step * increase)
-
-    return schedule
-
-
-def ramp_schedule(val_start, val_end, n_steps):
-
-    def schedule(step):
-        return val_start if step < n_steps else val_end
-
-    return schedule
-
-
-@gin.configurable
-def schedule_beta_is(value_start, value_end, steps):
-    return linear_schedule(value_start, value_end, steps)
-
-
-@gin.configurable
-def schedule_risk_penalty(value_start, value_end, steps):
     return ramp_schedule(value_start, value_end, steps)
 
 
